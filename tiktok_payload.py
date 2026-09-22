@@ -317,11 +317,42 @@ def user_status(user_detail: Optional[Dict[str, Any]]) -> Tuple[str, Optional[in
 # inject — they are ByteDance's own — but "not known to" is not "measured
 # not to", and the skip says so rather than a comment claiming otherwise.
 BOT_CHALLENGE_MARKERS = (
-    "oec-ttweb-captcha",
-    "captcha-init",
     "secsdk-captcha",
+    "captcha-init",
     "captcha_verify_img_slide",
+    "captcha_verify_container",
 )
+
+# `oec-ttweb-captcha` WAS in this set and has been REMOVED, and the way it
+# got here and the way it left are both worth keeping.
+#
+# It was adopted on the strength of a count across 25 captures — 0 on every
+# served page, 2 on the challenge — and every one of those captures came
+# from `tiktok.com`. At the time no SERVED TikTok Shop page existed to
+# count it on, because nothing had got past the shop's challenge yet.
+#
+# Once one did, the count inverted. Measured 2026-09-22 across 5 served
+# shop pages and 4 challenge pages:
+#
+#     marker                      served   challenge
+#     oec-ttweb-captcha                5           8   <- fires on both
+#     secsdk-captcha                   0          12
+#     captcha-init                     0           4
+#     captcha_verify_img_slide         0           3
+#     captcha_verify_container         0           3
+#
+# The shop loads its captcha SDK on EVERY page, ready to fire. So the
+# loader's name is a fact about the route, not a signal about the
+# response — and a scraper carrying it reported exit 3 on a 240 KB page
+# holding the product it had asked for. That is CLAUDE.md §18's rule
+# ("count it on a page you know is good") failing not because it was
+# ignored but because the good page did not exist yet, which is the
+# harder version of it: a marker is only as verified as the corpus it was
+# counted against, and a new route is a new corpus.
+#
+# The four kept names are the RENDERED widget — its container, its slider
+# image, and ByteDance's SDK class — none of which a page without a
+# challenge on it has any reason to carry.
 
 # TikTok's WAF interstitial — the THIRD shape of refusal on this site, and
 # the one that is actually curable.

@@ -104,7 +104,7 @@ HEX32 = re.compile(r"\b[0-9a-f]{32}\b")
 # before granting an exemption, and here the answer is yes.
 _TIKTOK_URL = re.compile(
     r"https?://[^\s\"'<>\\]*"
-    r"(?:tiktokcdn|ttwstatic|tiktokv|byteimg|ibyteimg|tiktok\.com)"
+    r"(?:tiktokcdn|ttcdn|ttwstatic|tiktokv|byteimg|ibyteimg|tiktok\.com)"
     r"[^\s\"'<>\\]*")
 
 # `"avatar_id": "<hex>"` — the extracted column, on its own line in
