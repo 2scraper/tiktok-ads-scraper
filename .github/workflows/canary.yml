@@ -1,0 +1,168 @@
+# Real runs against tiktok.com. tests.yml (deliberately) never touches the
+# site, a credential or a paid product; everything that does is here.
+#
+# WHY THIS CANARY IS NOT GATED ON A SECRET
+# ----------------------------------------
+# CLAUDE.md §11 says a canary that cannot pass must SKIP rather than fail,
+# because a check that is always red teaches everyone to ignore checks. The
+# other half of that rule is §21's, proven again on rakuten-scraper: a
+# canary that CAN pass without a credential should never be gated on one.
+#
+# This repo is the second case. Its central README claim is that TikTok's
+# EU Ad Library answers a bare datacentre address with no key, no proxy
+# and no account — measured 2026-09-22 from Hetzner Helsinki. The one
+# header that gates it is minted by the library's own page, which is why
+# this canary drives a browser and why a 421 in its output would be a
+# real finding rather than an access condition. A GitHub runner is a bare datacentre address
+# in a different network. So this job runs a real scrape every morning and
+# is EXPECTED to be green, and if TikTok ever puts that route behind a
+# challenge the badge goes red the next day and the claim is retested
+# without anyone having to remember to.
+#
+# The paid path is the one that skips: `scraper-api` needs TWOCAPTCHA_KEY
+# and says so with a ::notice:: when it is absent.
+name: canary
+
+on:
+  schedule:
+    - cron: "39 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ads:
+    name: a real multi-region ad scrape, with no credentials at all
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install the core and the Playwright engine
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt -r requirements-playwright.txt
+
+      - name: Install the browser
+        run: python -m playwright install --with-deps chromium
+
+      # THREE regions rather than one, and two of them chosen to exercise
+      # the thing this repo got wrong before `row_key` existed: an EU ad
+      # buy commonly runs in several member states at once, so DE and FR
+      # share most of a page while GB — outside the EU — shares almost
+      # none. A single-region canary would never see that.
+      #
+      # Two cursor pages, because with one page the CURSOR is never
+      # exercised and `offset` being a decoy would go unnoticed — which is
+      # the same argument CLAUDE.md §11 makes for asking a canary for
+      # three pages.
+      - name: Scrape three regions, two cursor pages each
+        id: run
+        run: |
+          set +e   # GitHub runs `run:` under `bash -e`, and a non-zero exit
+                   # would abort the step BEFORE the echo below.
+          python playwright_scraper.py --region DE,FR,GB --pages 2 \
+            --delay 0.3 --format both --out canary_ads
+          echo "exit_code=$?" >> "$GITHUB_OUTPUT"
+
+      - name: Assert what the run actually produced
+        run: |
+          python - <<'PY'
+          import json, sys
+
+          rc = int("${{ steps.run.outputs.exit_code }}")
+          meta = json.load(open("canary_ads.meta.json"))
+          rows = json.load(open("canary_ads.json"))
+          fail = []
+
+          # Exit 5 is a DEFECT here, not an access condition: this canary
+          # uses no credential (CLAUDE.md §24).
+          if rc != 0:
+              fail.append(f"exit {rc}")
+          if meta["status"] != "complete":
+              fail.append(f"status {meta['status']!r}, expected 'complete'")
+
+          # Six cursor pages at twelve ads each, minus whatever overlapped.
+          if not 40 <= len(rows) <= 72:
+              fail.append(f"{len(rows)} rows — six cursor pages of twelve "
+                          f"should land between 40 and 72 after dedupe")
+
+          # Every region must have produced ads. A region silently
+          # returning nothing is the failure mode that `row_key` fixed,
+          # and the canary is what keeps it fixed.
+          per_region = meta.get("ads_per_region") or {}
+          for region in ("DE", "FR", "GB"):
+              if per_region.get(region, 0) < 12:
+                  fail.append(f"{region} produced {per_region.get(region)} "
+                              f"ads — a region collapsing is exactly the "
+                              f"bug row_key exists to prevent")
+
+          # row_key must be unique while ad ids need not be.
+          keys = [r.get("row_key") for r in rows]
+          if len(set(keys)) != len(keys):
+              fail.append("row_key is not unique")
+          if any(not r.get("row_key") for r in rows):
+              fail.append("some rows have no row_key")
+
+          # The cursor really advanced: page 2 rows must exist.
+          if not any(r.get("page") == 2 for r in rows):
+              fail.append("no page-2 rows — the cursor did not advance, "
+                          "which is what `offset` being a decoy looks like")
+
+          # The sidecar must keep saying how small a sample this is.
+          totals = meta.get("site_total_per_region") or {}
+          if not totals or any(not v for v in totals.values()):
+              fail.append("the sidecar stopped recording the site's own "
+                          "totals, which is what makes 'complete' honest")
+
+          # Columns that must be on every row.
+          for column in ("sku", "ad_id", "region", "first_shown_at",
+                         "last_shown_at", "creative_type"):
+              missing = [r["sku"] for r in rows if r.get(column) is None]
+              if missing:
+                  fail.append(f"{column} is null on {len(missing)} row(s)")
+
+          # Dates in this century. TikTok publishes milliseconds; read as
+          # seconds they land in the year 58,700.
+          bad_dates = [r["sku"] for r in rows
+                       if not str(r.get("first_shown_at", "")).startswith("20")]
+          if bad_dates:
+              fail.append(f"{len(bad_dates)} row(s) have an implausible "
+                          f"first_shown_at — milliseconds read as seconds?")
+
+          if fail:
+              print("::error::canary FAILED")
+              for line in fail:
+                  print(f"  - {line}")
+              sys.exit(1)
+          shared = len(rows) - len({r["ad_id"] for r in rows})
+          print(f"canary OK: {len(rows)} ads across {len(per_region)} "
+                f"regions ({per_region}), {shared} ad(s) running in more "
+                f"than one region, status {meta['status']}")
+          PY
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: canary-ads
+          path: |
+            canary_ads.json
+            canary_ads.csv
+            canary_ads.meta.json
+          retention-days: 7
+
+  # NO paid job here, deliberately.
+  #
+  # The sibling repos have one that skips without a key. This repo has no
+  # Scraper API path at all: that service fetches a URL and hands back what
+  # the site returned, and the Ad Library's search is a POST gated by a
+  # header only its own page JavaScript mints. A service that renders a URL
+  # cannot produce one for a request it is not making.
+  #
+  # Saying that here rather than shipping a job that would skip forever
+  # (CLAUDE.md §11: a check that is always the same teaches everyone to
+  # ignore checks).
