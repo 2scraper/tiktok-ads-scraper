@@ -1,5 +1,5 @@
 """
-smoke_test.py — the offline suite for tiktok-profile-scraper.
+smoke_test.py — the offline suite for tiktok-ads-scraper.
 
 One file of plain functions with fixtures loaded from
 `fixtures_generated.json`. No pytest, no conftest, no fixtures directory
@@ -22,40 +22,24 @@ the same page state — before writing anything.
 
 What the fixtures deliberately reproduce
 ----------------------------------------
-Each is a trap this repo measured, and the fixture exists so that fixing it
-stays fixed:
+Each is a response of the library's search endpoint, trimmed by
+`make_fixtures.py`, and each pins a trap this repo measured:
 
-  * `stats` against `statsV2` — TikTok publishes every count twice and the
-    two disagree. The fixtures span the whole measured range of that
-    disagreement, from @zachking's 407 to @tiktok's 43,287, and the check
-    below pins BOTH numbers for each account. A suite that only ever saw
-    @nasa's 14,710 would pass a parser that read the wrong object and
-    happened to be tested on a 3-significant-figure account.
-  * an account with 163,000,000 followers and 2,680,875,280 likes, where an
-    int that should have been a string breaks;
-  * a small account, 429,675 followers, which is where a parser that only
-    ever sees abbreviated magnitudes gets caught;
-  * a handle with NO account behind it, which TikTok answers with HTTP 200,
-    370 KB and a complete app shell — `statusCode: 10221`,
-    `statusMsg: "user banned"`, `userInfo: null`. That message is TikTok's
-    word for a nonexistent handle as well as a banned one, and one of the
-    checks below pins that this repo does not claim to tell them apart;
-  * a `?lang=ja` page, to pin that a locale flag moves the CHROME and not
-    the DATA.
+  * two consecutive pages of one region (`de_page1`, `de_page2`), because
+    the request's `offset` and `limit` are decoys and the page is chosen by
+    the `search_id` cursor the response hands back;
+  * image ads (`image_ads`) beside the video ads, which fill different
+    creative columns;
+  * a rejected ad (`rejected`), which carries TikTok's own policy reason.
 
 What is NOT in them, and why that needed no scrubbing step
 ----------------------------------------------------------
-A fixture here is the `webapp.user-detail` scope alone, trimmed out of a
-~370 KB page. The session material a capture carries — the csrf token, the
-odinId, the ttwid — all lives OUTSIDE that scope, so it is absent as a
-consequence of keeping only what is under test rather than as a redaction
-someone has to remember to perform. That is the version of scrubbing that
-cannot rot.
-
-A TikTok profile is also not a comment thread: the account, its bio, its
-counts and its picture are the site's own catalogue entry for a public
-creator, not a private individual's words. So nothing here is replaced with
-a placeholder, and the checks test real values.
+The endpoint sets no cookies at all, and the one header that gates it
+lives in the REQUEST, never in the response, so there is no session
+material to scrub. Advertiser names ARE real and stay real: an advertiser
+in a statutory transparency library is a company that has published its
+advertising by law, not a private individual. So nothing here is replaced
+with a placeholder, and the checks test real values.
 """
 
 import argparse
@@ -120,9 +104,11 @@ CONTRACT_FLAGS = {
     "--locale",
 }
 
-# This repo's own addition. `--transport` exists because the profile page is
-# server-rendered and a browser buys nothing on it, so the default is plain
-# HTTP and the browser is a fallback rather than the engine.
+# This repo's own additions. `--transport` is the family's switch between a
+# browser and plain HTTP; here `browser` is the default and effectively the
+# only one, because the search endpoint's `x-ccl-str` token is minted by the
+# page's own JavaScript. `--region`, `--query`, `--days` and `--ad-type` are
+# the Ad Library's own search parameters.
 SITE_FLAGS = {"--transport", "--region", "--query", "--days",
               "--ad-type"}
 
@@ -884,10 +870,9 @@ def check_exit_codes():
           (3, 4, 5, 6))
     check("page_cap_reached is a COMPLETE stop reason",
           "page_cap_reached" in O.COMPLETE_STOP_REASONS)
-    # `/explore` and `/careers` are each served at ONE address holding
-    # their whole result set — measured, not assumed: every pagination
-    # parameter tried returned a byte-identical payload — so a run that
-    # stopped after one fetch fetched the whole route.
+    # Carried for the family's shared vocabulary: no engine in this repo
+    # emits it today, but a route served at ONE address holding its whole
+    # result set is complete after one fetch, and must stay so.
     check("single_page_route is complete by construction AND by measurement",
           "single_page_route" in O.COMPLETE_STOP_REASONS)
     # Carried for the family's shared vocabulary and unreachable here: this
@@ -916,7 +901,7 @@ def check_a_run_that_finds_nothing_writes_nothing():
         equal("--allow-empty WRITES the empty file...", 
               json.load(open(prefix + ".json", encoding="utf-8")), [])
         # ...and still reports exit 4. Pinned deliberately (§10: pin a known
-        # behaviour rather than half-guarding it): "zero businesses" is true
+        # behaviour rather than half-guarding it): "zero rows" is true
         # whether or not the file was written, and a caller that wanted the
         # file still wants to know the result was empty.
         equal("...and still reports exit 4, because it IS empty", code, 4)
@@ -926,9 +911,9 @@ def check_sidecar_shape():
     from output_writer import run_meta
     meta = run_meta(status="complete", stop_reason="single_page_route",
                     pages_requested=1, pages_completed=1, pages_failed=[],
-                    products=3, mode="profile", source="tiktok.com",
-                    start_url="https://www.tiktok.com/@nasa",
-                    final_url="https://www.tiktok.com/@nasa",
+                    products=3, mode="ads", source="library.tiktok.com",
+                    start_url="https://library.tiktok.com/ads?region=DE",
+                    final_url="https://library.tiktok.com/ads?region=DE",
                     extra={"pages_available": 1, "route_is_paginated": False})
     for key in ("status", "stop_reason", "pages_requested", "pages_completed",
                 "pages_failed", "mode", "source"):
@@ -1144,18 +1129,19 @@ def check_banned_and_removed_flags():
     than to the tree (CLAUDE.md §10).
 
     What the rule is really about is an option that can disagree with
-    reality, and the three that CAN on this site are all refused with
+    reality, and the ones that CAN on this site are all handled with
     their reason rather than silently absorbed:
 
-      * a URL that is not a profile — a hashtag feed or a video page has
-        no account object on it, and "not a TikTok URL" would be a lie
-        about a TikTok URL (CLAUDE.md §5);
-      * `--pages` above 1, because a profile has exactly one page and a
-        silent cap would report a complete run of duplicates;
+      * a region the library does not serve — refused with its reason
+        (a real country outside the EU/EEA obligation is told so), rather
+        than answered with an empty run;
+      * `--transport http`, because the search endpoint answers HTTP 421
+        without a token only the page's own JavaScript mints;
       * `--proxy` with `--cdp-endpoint`, because the Scraping Browser
         already proxies and stacking two exits is not better cover;
-      * more workers than there are accounts to fetch, which would leave
-        idle threads and a log that overstates what the run did.
+      * `--concurrency` above 1 is clamped to one worker, because page 2's
+        cursor arrives inside page 1's response and a second worker would
+        have nothing to fetch.
     """
     for module in ENGINES:
         path = os.path.join(HERE, module + ".py")
@@ -1893,22 +1879,19 @@ def check_per_page_rotation_actually_rotates_per_page():
 
 
 def check_a_site_that_answered_is_not_a_run_that_failed():
-    """Exit 4 and exit 5 answer different questions, and two states sat on
-    the wrong side of the line for a day.
+    """Exit 4 and exit 5 answer different questions.
 
-    `comments_disabled` and `video_unavailable` are the site ANSWERING:
-    this video takes no comments, this video is not there. Both arrive as
-    HTTP 200 with a large, healthy payload. The honest code for a zero-row
-    run is 4 — "we asked, and the answer was nothing" — and not 5, which
-    means the content was never obtained at all and sends a reader to
-    check a proxy that is working fine.
+    `no_ads_found` is the site ANSWERING: the query matched no ads in that region. The honest code for a zero-row run is
+    4 — "we asked, and the answer was nothing" — and not 5, which means
+    the content was never obtained at all and sends a reader to check a
+    proxy that is working fine.
 
-    They regressed to 5 when the family unified its exit codes: that rule
-    keys on "did the run complete" rather than on a list of failure names,
-    which is the right shape and stays. What was wrong was the COMPLETE
-    set, which enumerated only the ways a pagination LOOP can end and not
-    the ways a SITE can answer. Measured the day after: both URLs returned
-    5 where they had returned 4.
+    A sibling repo (youtube-scraper) had two such states regress to 5 when
+    the family unified its exit codes: that rule keys on "did the run
+    complete" rather than on a list of failure names, which is the right
+    shape and stays. What was wrong there was the COMPLETE set, which
+    enumerated only the ways a pagination LOOP can end and not the ways a
+    SITE can answer.
 
     Pinned in both directions, because a rule that made everything
     complete would pass the first half of this check and be worse than the
@@ -2236,7 +2219,7 @@ def check_ci_greps_for_a_sentinel_this_suite_can_actually_emit():
 
 def main():
     global VERBOSE
-    parser = argparse.ArgumentParser(description="tiktok-profile-scraper offline suite")
+    parser = argparse.ArgumentParser(description="tiktok-ads-scraper offline suite")
     parser.add_argument("-v", "--verbose", action="store_true")
     args = parser.parse_args()
     VERBOSE = args.verbose
@@ -2344,16 +2327,17 @@ def check_no_statement_follows_a_return_in_the_same_block():
 def check_the_waf_interstitial_is_recognised_and_curable():
     """The THIRD shape of refusal on this site, and the only curable one.
 
-    Measured 2026-09-22, `GET /@nasa` with a plain HTTP client:
+    Measured 2026-09-22 on the profile page (`GET /@nasa`, the route the
+    sibling tiktok-profile-scraper reads) with a plain HTTP client:
 
         from this datacentre address (Hetzner, Helsinki)   3 of 3 served
         from a residential pool, nine exits                2 of 9 served
 
     The other seven answered HTTP 200 with 1,462 bytes whose visible text
     is "Please wait..." and whose body carries TikTok's WAF challenge. So
-    a residential proxy is MEASURABLY WORSE than no proxy on this route —
-    22% against 100% — which inverts this family's usual instinct and is
-    why the README says so.
+    a residential proxy was MEASURABLY WORSE than no proxy on that route —
+    22% against 100% — which inverts this family's usual instinct. The
+    detection is shared, so this repo recognises the interstitial too.
 
     And a browser CLEARS it: driving Chromium through the very exits that
     refused a plain HTTP client, 3 of 3 served and 0 still challenged. It
@@ -2443,6 +2427,64 @@ def check_the_scraping_browsers_own_extension_does_not_read_as_a_challenge():
               burned in CDP_INJECTED,
               "if this stops being true the fixture is stale — recapture "
               "it over --cdp-endpoint")
+
+
+def check_diff_runs_watches_this_repos_columns():
+    """Every column diff_runs.py watches exists on this repo's row class.
+
+    Its TRACKED_FIELDS once named a sibling's columns (the account fields
+    of tiktok-profile-scraper), so the diff compared almost nothing and
+    reported "0 changed" on runs where a watched value had changed. Pinned
+    by name AND by behaviour: a changed tracked column must be reported.
+    """
+    import copy
+    import dataclasses
+    import diff_runs
+    import output_writer
+    names = set()
+    for cls in output_writer.ROW_CLASS_BY_MODE.values():
+        names |= {f.name for f in dataclasses.fields(cls)}
+    check("diff_runs tracks at least one column",
+          len(diff_runs.TRACKED_FIELDS) > 0)
+    missing = [n for n in diff_runs.TRACKED_FIELDS + diff_runs.SOURCE_ONLY_FIELDS
+               if n not in names]
+    check("every column diff_runs watches exists on the row class",
+          not missing, "not on the row class: %r" % missing)
+    check("SOURCE_ONLY_FIELDS is a subset of TRACKED_FIELDS",
+          set(diff_runs.SOURCE_ONLY_FIELDS) <= set(diff_runs.TRACKED_FIELDS))
+    check("SOURCE_COLUMN is a real column or None",
+          diff_runs.SOURCE_COLUMN is None or diff_runs.SOURCE_COLUMN in names)
+
+    def bumped(value):
+        if isinstance(value, bool):
+            return not value
+        if isinstance(value, (int, float)):
+            return value + 1
+        if isinstance(value, list):
+            return value + ["changed"]
+        return str(value) + " (changed)"
+
+    with open(os.path.join(HERE, "sample_output.json"), encoding="utf-8") as fh:
+        base = json.load(fh)[0]
+    plain = [f for f in diff_runs.TRACKED_FIELDS
+             if f not in diff_runs.SOURCE_ONLY_FIELDS and base.get(f) is not None]
+    check("the sample row has a tracked column to change", bool(plain))
+    if plain:
+        after = copy.deepcopy(base)
+        after[plain[0]] = bumped(base[plain[0]])
+        result = diff_runs.diff_products([base], [after])
+        equal("a changed %s is reported as changed" % plain[0],
+              [list(c["changes"]) for c in result["changed"]], [[plain[0]]])
+    split = [f for f in diff_runs.SOURCE_ONLY_FIELDS if base.get(f) is not None]
+    if diff_runs.SOURCE_COLUMN and split:
+        after = copy.deepcopy(base)
+        after[split[0]] = bumped(base[split[0]])
+        after[diff_runs.SOURCE_COLUMN] = str(base.get(diff_runs.SOURCE_COLUMN)) + "-other"
+        result = diff_runs.diff_products([base], [after])
+        check("a %s difference with a %s difference is source_changed"
+              % (split[0], diff_runs.SOURCE_COLUMN),
+              len(result["source_changed"]) == 1 and not result["changed"],
+              "got %r" % result)
 
 
 def check_scraper_api_waitfor_is_object_and_status_is_http_code():

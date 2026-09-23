@@ -4,7 +4,7 @@ Shared by all three browser engines and the HTTP path so they cannot
 quietly disagree about whether a response is worth retrying, worth paying
 a solver for, or worth reporting as a block. Three copies of that triage
 drift, and the drift is silent: one engine reporting exit 3 where its twin
-reports exit 0 on the same video (CLAUDE.md §1).
+reports exit 0 on the same response (CLAUDE.md §1).
 
 Policy and pure algorithms only. No JavaScript crosses this boundary —
 Selenium's `execute_script` takes a function BODY with an explicit
@@ -34,16 +34,10 @@ residential exit in Peru — TikTok answered:
     HTTP 200   content-type: application/json   content-length: 0
 
 No status to key on, no body to parse, no marker to match. Folded into
-"empty" it reads as an account with no data and the run reports exit 0;
+"empty" it reads as a region with no ads and the run reports exit 0;
 named separately it rotates an exit and reports exit 3. This repo's own
 route has not produced it, and it is carried anyway, because the cost of
 being wrong about it is a silent wrong answer.
-
-`video_unavailable` is the other one. A deleted video, a private account
-and an id that never existed all answer HTTP 200 with a full app shell and
-an empty `itemInfo` — a real answer to the question asked, not a block.
-Reporting it as one sends a user rotating proxies over a video that is not
-there.
 """
 
 from __future__ import annotations
@@ -61,22 +55,17 @@ from product_parser import (STATE_CHALLENGE, STATE_CONTENT,
 # Readiness — for the browser engines only
 # ---------------------------------------------------------------------------
 #
-# The browser engines do not read the account out of the DOM — it is in
-# the page SOURCE, in a script tag, server-rendered. So what they wait for
-# is not a rendered grid but a document that has finished arriving. That is
-# a much weaker requirement than most repos in this family have, and
-# stating it here keeps an engine from growing a tile-counting wait that
-# measures the wrong thing.
+# The browser engines do not read ads out of the DOM — they come from the
+# search endpoint's JSON. The browser is there to let the Ad Library's own
+# search run once, so its app mints the `x-ccl-str` token, and what the
+# engines wait for is a page with a button on it to press (the Search
+# button). That is a much weaker requirement than most repos in this family
+# have, and stating it here keeps an engine from growing a tile-counting
+# wait that measures the wrong thing.
 #
-# A run that never sees the selector still works — the payload is parsed
-# out of the source either way — so this is a wait, not a gate.
-#
-# `[data-e2e="user-page"]` is the profile header's own test id, which is a
-# build artefact and therefore listed AFTER nothing more durable exists;
 # `body` is the floor that always matches, which is why the minimum is 1
-# rather than the >1 CLAUDE.md §5 requires of a LISTING. A profile page
-# holds exactly one account, so "more than one match" is not a thing that
-# can be waited for here.
+# rather than the >1 CLAUDE.md §5 requires of a LISTING: nothing on this
+# page is a grid to count.
 READY_SELECTOR = 'button, body'
 MIN_CARD_MATCHES = 1
 CONTENT_TIMEOUT_MS = 30_000
@@ -149,17 +138,9 @@ def classify(html, status: Optional[int] = None, url: str = "",
 
 
 STATE_POLICY = {
-    # A profile page with an account on it.
+    # A search response with ads in it.
     STATE_CONTENT: {"retry": False, "solve": False, "blocked": False,
                     "parse": True},
-    # TikTok returned no video. A real, complete answer to the question
-    # asked — EXIT_NO_PRODUCTS, never EXIT_BLOCKED. Retrying it re-asks a
-    # question the site has already answered, and rotating exits over it
-    # spends a proxy budget on a video that is not there.
-    #
-    # `parse` is False because there is nothing to parse; the engine reads
-    # the state itself to distinguish this from a failure when it counts
-    # pages.
     # The query was answered and matched nothing. A real, complete answer
     # — EXIT_NO_PRODUCTS, never EXIT_BLOCKED. Retrying re-asks a question
     # the library has answered.
@@ -209,8 +190,8 @@ STATE_POLICY = {
                   "parse": False},
     # A page the site plainly served, with its own assets all over it, that
     # this parser failed to read. OUR bug, and it gets its own name so it
-    # cannot be reported as "no such account" — which would send the
-    # reader to check the handle instead of the parser (CLAUDE.md §20).
+    # cannot be reported as "no ads" — which would send the reader to
+    # check the query instead of the parser (CLAUDE.md §20).
     # One retry in case a response was truncated, and always worth a dump.
     STATE_PARSE_ERROR: {"retry": True, "solve": False, "blocked": False,
                         "parse": False},
@@ -317,12 +298,10 @@ def pagination_is_addressable(url: str = "", mode: str = "ads") -> bool:
 def pages_to_plan(pages_requested: int, pages_available: Optional[int]) -> int:
     """How many pages a run may ask for, given what is known to exist.
 
-    Here `pages_available` is the number of targets `--url` named, and
-    capping at it matters: asking for the eleventh of ten videos is not an
-    empty page, it is an index error waiting to happen.
-
-    Neither route states a page count of its own. The embed window does not
-    say how many videos the account has, and a video page is one video.
+    Where a caller knows how many pages exist, capping at it matters:
+    asking past the end is not an empty page, it is a request the site
+    will answer with something else. The Ad Library states a TOTAL of ads
+    per region, not a page count, and its cursor is what ends a run.
     """
     wanted = max(1, int(pages_requested or 1))
     if pages_available and pages_available > 0:
@@ -351,7 +330,7 @@ def concurrency_for_mode(mode: str, concurrency: int) -> int:
 
 
 def sample_share(collected: int, total: Optional[int]) -> Optional[float]:
-    """What fraction of an account's videos a run actually holds.
+    """What fraction of a region's ads a run actually holds.
 
     CLAUDE.md §21: "complete" and "exhaustive" are different words, and on
     THIS route the gap is the largest in the family. TikTok's Ad Library

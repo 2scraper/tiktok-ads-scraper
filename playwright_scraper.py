@@ -246,7 +246,8 @@ class _BrowserSession:
         A function object, never an evaluated string.
 
         Not because TikTok forbids the alternative — measured 2026-09-22,
-        its `content-security-policy` header on a profile page DOES carry
+        its `content-security-policy` header on a profile page (the sibling
+        tiktok-profile-scraper's route) DOES carry
         `'unsafe-eval'`, so a string-eval would work here today. The
         comment inherited with this core claimed the opposite about this
         site, which is CLAUDE.md §16 exactly: a copied file's certainty is
@@ -384,10 +385,10 @@ def _launch_local(pw, args, pool: Optional[ProxyPool]) -> _BrowserSession:
     page = context.new_page()
     if fingerprint is not None:
         _apply_fingerprint(context, page, fingerprint, user_agent)
-    # The `client_version` slot is inherited from the site this core came
-    # from, which states one in its own page. TikTok's profile route takes
-    # no such parameter, so it stays empty rather than carrying a constant
-    # nothing reads (CLAUDE.md §17).
+    # The `client_version` slot is part of the shared session interface.
+    # The Ad Library takes no such parameter — its one gate is the
+    # `x-ccl-str` header — so it stays empty rather than carrying a
+    # constant nothing reads (CLAUDE.md §17).
     return _BrowserSession(browser, context, page, proxy_url,
                            "", user_agent)
 
@@ -862,11 +863,11 @@ def _rotate_if_per_page(session_box, pw, args, pool, why: str) -> bool:
     than either address alone, so the session is torn down and rebuilt
     rather than having its proxy swapped underneath it.
 
-    Free of mid-run consequences on this route, because there is no chain
-    to break: each account is fetched by its own address and nothing one
-    fetch receives is an input to the next. That is a property of the
-    ROUTE, not a measurement of TikTok's tolerance — the video feed next
-    door refuses every client regardless of how it rotates.
+    On this route a run IS a chain — page N's `search_id` cursor arrives
+    inside page N-1's response — and whether a cursor survives a change of
+    exit has not been measured here. The rebuilt session mints a fresh
+    `x-ccl-str` token by re-priming, which is measured to be what a stale
+    token needs.
     """
     if not pool or not pool.rotates_per_page() or len(pool) < 2:
         return False
@@ -892,7 +893,7 @@ def _worker_pool(pool: Optional[ProxyPool], worker_index: int):
 
 
 # ---------------------------------------------------------------------------
-# --mode profile
+# Targets: regions
 # ---------------------------------------------------------------------------
 
 
