@@ -67,12 +67,9 @@ CREDENTIALLED_URL = re.compile(
 CREDENTIAL_ALLOWED = (
     # documentation placeholders
     "USER:PASS", "user:pass", "ACCOUNT:PASSWORD", "LOGIN:PASSWORD",
-    # This repo's April 2026 prototype README documented a proxy URL as
-    # `http://username:password@…`. That commit is in the history and cannot
-    # be removed from it, so --history-check would fail forever on a literal
-    # placeholder — which would teach everyone to ignore the one check that
-    # exists to be read exactly once, before publishing. Allowed by NAME, so
-    # a real login still fails.
+    # scraper_api_client.py's masker docstring names the shape it removes
+    # (`username:password` inside a URL). Allowed by NAME, so a real login
+    # still fails.
     "username:password",
     "{login}", "{user}", "password}@", "***", "u:p@h",
     "login:password@host:port",     # the shape a refusal message prints
@@ -98,29 +95,25 @@ HEX32 = re.compile(r"\b[0-9a-f]{32}\b")
 # tiktokcdn URL", which is a deliberate disguise rather than an accident —
 # the bar CLAUDE.md §24 asks for.
 #
-# These values are all needed: `product_parser._avatar_parts()` reads a
-# content hash into a column, and a fixture has to hold a whole signed URL
-# to exercise the expiry parsing. §24 asks whether the value is needed
-# before granting an exemption, and here the answer is yes.
+# These values are needed: a fixture has to hold the library's whole proxied media URLs,
+# because `parse_search` reads them into columns and a fixture without
+# them would test neither. §24 asks whether the value is needed
+# before granting an exemption, and here the answer is yes. (The sibling
+# tiktok-profile-scraper also exempts its `avatar_id` column; this repo has
+# no such column, so it does not.)
 _TIKTOK_URL = re.compile(
     r"https?://[^\s\"'<>\\]*"
     r"(?:tiktokcdn|ttcdn|ttwstatic|tiktokv|byteimg|ibyteimg|tiktok\.com)"
     r"[^\s\"'<>\\]*")
 
-# `"avatar_id": "<hex>"` — the extracted column, on its own line in
-# indented JSON, away from the URL it came from.
-_AVATAR_ID_FIELD = re.compile(r'"avatar_id"\s*:\s*"([0-9a-f]{32})"')
-
 
 def _in_cdn_path(line, match):
-    """True when this specific 32-hex is part of a TikTok URL, or the
-    `avatar_id` column extracted from one."""
+    """True when this specific 32-hex is part of a TikTok URL."""
     value = match.group(0) if hasattr(match, "group") else match
     for url in _TIKTOK_URL.finditer(line):
         if value in url.group(0):
             return True
-    field = _AVATAR_ID_FIELD.search(line)
-    return bool(field and field.group(1) == value)
+    return False
 
 
 HEX32_ALLOWED = ("sha", "hash", "nonce", "example", "md5", "digest",
@@ -130,12 +123,13 @@ HEX32_ALLOWED = ("sha", "hash", "nonce", "example", "md5", "digest",
 # them the scan skipped the BIGGEST files in the repository — the generated
 # fixtures and the committed sample, which are captured page payload and
 # therefore exactly where a front-end key or a session token arrives.
-# Measured 2026-09-21 by planting a real-shaped 2captcha key and a
-# `ws://user:pass@` URL into `fixtures_generated.json`: the scan reported
-# "nothing credential-shaped" over 35 files.
+# Measured 2026-09-21 on a sibling (rakuten-scraper, CLAUDE.md §24) by
+# planting a real-shaped 2captcha key and a `ws://user:pass@` URL into
+# `fixtures_generated.json`: the scan reported "nothing credential-shaped".
 #
 # Added with NO allowlist, which is the point: the real fixtures and sample
-# contain zero 32-hex strings and zero credentialled URLs, so the strictest
+# contain zero 32-hex strings outside a TikTok URL and zero credentialled
+# URLs, so the strictest
 # rule covers the largest files rather than acquiring an exception that a
 # real key could later hide behind (CLAUDE.md §24).
 SCANNED_SUFFIXES = (".py", ".md", ".txt", ".yml", ".yaml", ".example",

@@ -6,6 +6,42 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and SemVer as closely as a CLI toolkit can. A patch means **fixes**; where
 a default changes in one, the note leads with it.
 
+## [Unreleased]
+
+### Fixed
+
+> **`diff_runs.py` compared almost nothing.** Its `TRACKED_FIELDS` were
+> tiktok-profile-scraper's account columns, 26 of which `Advertisement`
+> does not have, so a diff of two runs reported "0 changed" whenever only
+> an ad's run dates, review status or audience changed. It now tracks this
+> repo's own columns and prints each run's share of the library's
+> per-region total. `smoke_test.py` pins every tracked name against the
+> dataclass and checks that a changed column is actually reported.
+
+> **A copied `.env.example` set `TIKTOK_URL=nasa`**, a TikTok handle, which
+> is not a region. It is now `DE`.
+
+- **Donor prose removed from the shared core.** `output_writer.py`,
+  `diff_runs.py`, the engines, `page_flow.py`, `smoke_test.py`,
+  `.github/ci_checks.py` and the `Dockerfile` carried text from the repos
+  this core was copied from — YouTube comment threads, `--sort top`,
+  reply threads, job listings, "the business", `--mode comments --out
+  software-engineer` — describing those sites as if they were this one.
+  Rewritten from this repo's own README, code and fixtures, or deleted
+  where there was no measured equivalent. Explicit sibling provenance
+  ("measured on tiktok-profile-scraper's route", "a sibling repo
+  (youtube-scraper) had…") is kept and now says whose it is.
+- `output_writer.py`'s docstring described `--mode profile` and account
+  statistics; `page_flow.py`, the engines and `smoke_test.py` described a
+  profile page, an account, `video_unavailable` and the embed window. All
+  now describe the Ad Library (or are gone).
+- The engines' `_rotate_if_per_page` said nothing one fetch receives feeds
+  the next; on this route the `search_id` cursor does, and it now says so.
+- `smoke_test.py`'s `run_meta` test data is an `ads` run on
+  `library.tiktok.com` rather than a `profile` run on `@nasa`.
+- `.github/ci_checks.py` no longer exempts an `avatar_id` column this repo
+  does not have from the credential scan.
+
 ## [0.1.1] — 2026-09-23
 
 > **Correction to v0.1.0.** Its `captcha_solver.py` docstring described a

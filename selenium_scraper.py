@@ -825,7 +825,7 @@ def _fetch_with_policy(session_box: Dict[str, Any], pw, args,
 
 
 # ---------------------------------------------------------------------------
-# --mode comments
+# Proxy rotation between pages
 # ---------------------------------------------------------------------------
 
 
@@ -844,10 +844,11 @@ def _rotate_if_per_page(session_box, pw, args, pool, why: str) -> bool:
     than either address alone, so the session is torn down and rebuilt
     rather than having its proxy swapped underneath it.
 
-    Safe to do mid-chain on this site, and that is measured rather than
-    assumed: a continuation token fetched by one client was replayed
-    successfully by a bare HTTP client with no cookies at all, so the
-    token is not bound to the session that received it.
+    On this route a run IS a chain — page N's `search_id` cursor arrives
+    inside page N-1's response — and whether a cursor survives a change of
+    exit has not been measured here. The rebuilt session mints a fresh
+    `x-ccl-str` token by re-priming, which is measured to be what a stale
+    token needs.
     """
     if not pool or not pool.rotates_per_page() or len(pool) < 2:
         return False
@@ -874,7 +875,7 @@ def _worker_pool(pool: Optional[ProxyPool], worker_index: int):
 
 
 # ---------------------------------------------------------------------------
-# --mode profile
+# Targets: regions
 # ---------------------------------------------------------------------------
 
 

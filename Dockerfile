@@ -4,8 +4,8 @@
 #
 #   docker build -t tiktok-ads-scraper .
 #   docker run --rm -v "$PWD/out:/out" tiktok-ads-scraper \
-#     --mode comments \
-#     --pages 3 --out /out/software-engineer
+#     --region DE --pages 3 \
+#     --out /out/ads_de
 #
 # Pass --proxy/--twocaptcha-key the same way as running locally, or mount a
 # .env at /app/.env — nothing here bakes in a credential.
