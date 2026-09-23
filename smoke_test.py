@@ -1427,6 +1427,22 @@ def check_the_credential_scan_survives_a_venv_in_the_tree():
     check("...and is not limited to git's index",
           "git ls-files" not in open(script, encoding="utf-8").read())
 
+    # And the skip set applies INSIDE the repo only. A clone that lives
+    # under a directory called `tmp` (or `build`, `run`, ...) once scanned
+    # zero files and reported the empty set as clean.
+    with tempfile.TemporaryDirectory() as tmp:
+        clone = pathlib.Path(tmp) / "tmp" / "build" / "a-clone"
+        clone.mkdir(parents=True)
+        (clone / "planted.py").write_text("x = 1\n")
+        saved = mod.REPO
+        mod.REPO = clone
+        try:
+            found = [p.name for p in mod.scanned_files()]
+        finally:
+            mod.REPO = saved
+        check("...wherever the clone happens to live on disk",
+              found == ["planted.py"], repr(found))
+
 
 def check_banned_wording():
     """§12: enforced by this test rather than by review."""

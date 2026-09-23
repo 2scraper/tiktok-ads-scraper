@@ -206,7 +206,12 @@ def scanned_files():
             continue
         if path.suffix not in SCANNED_SUFFIXES and not _is_env_variant(path):
             continue
-        if any(part in _SKIP_NAMES for part in path.parts):
+        # Parts RELATIVE to the repo, never absolute: a clone that happens
+        # to live under /tmp, ~/build or ~/run would otherwise skip every
+        # file it holds and report "nothing credential-shaped" about an
+        # empty set. Found by cloning into a job's tmp/ directory.
+        if any(part in _SKIP_NAMES
+               for part in path.relative_to(REPO).parts):
             continue
         if any(root in path.parents for root in skip_roots):
             continue
