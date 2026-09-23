@@ -2445,6 +2445,48 @@ def check_the_scraping_browsers_own_extension_does_not_read_as_a_challenge():
               "it over --cdp-endpoint")
 
 
+def check_scraper_api_waitfor_is_object_and_status_is_http_code():
+    """Measured 2026-09-23 against the live Scraper API: a `waitFor` sent as
+    a JSON-encoded STRING is answered HTTP 422 ("params.waitFor must be an
+    object") and still billed; an object is answered 200. And the target's
+    status is `http_code` -- `status` is the API's own "success", which must
+    never be what reaches the page classifier. Driven through the real
+    fetch_html with requests.post stubbed, so no network and no key."""
+    import argparse
+    import scraper_api_client as sac
+    captured = {}
+
+    class _Resp:
+        status_code = 200
+        headers = {}
+        text = ""
+
+        def json(self):
+            return {"status": "success", "http_code": 403, "body": "<html></html>"}
+
+    def _post(url, headers=None, json=None, timeout=None, **_kw):  # noqa: A002
+        captured["payload"] = json
+        return _Resp()
+
+    real_post = sac.requests.post
+    sac.requests.post = _post
+    try:
+        args = argparse.Namespace(url='https://www.tiktok.com/', key="k", timeout=60,
+                                  cdp_url=None, wait_text='TikTok',
+                                  wait_element=None, wait_state=None)
+        result = sac.fetch_html(args)
+    finally:
+        sac.requests.post = real_post
+    status = result[1] if isinstance(result, tuple) else None
+    wf = (captured.get("payload") or {}).get("waitFor")
+    check(f"Scraper API: --wait-text must send waitFor as an OBJECT (a string "
+          f"is HTTP 422 and still billed), got {wf!r}",
+          isinstance(wf, dict) and wf.get("text") == 'TikTok')
+    check(f"Scraper API: the status handed onward must be the target's "
+          f"http_code 403 (int), not the API's own verdict, got {status!r}",
+          status == 403 and isinstance(status, int))
+
+
 CHECKS = [v for k, v in sorted(globals().items()) if k.startswith("check_")
           and callable(v) and k != "check"]
 
