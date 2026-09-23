@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "tiktok-ads-scraper"
-version = "0.1.0"
+version = "0.1.1"
 description = "TikTok EU Ad Library scraper: advertisers, creatives, run dates and rejection reasons across 33 regions, paginated by the cursor the API hands back rather than by the offset it ignores."
 readme = "README.md"
 license = "MIT"

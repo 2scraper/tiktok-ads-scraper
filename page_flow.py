@@ -183,11 +183,11 @@ STATE_POLICY = {
     # API will reject (CLAUDE.md §19: detected != paying).
     STATE_EMPTY_SUCCESS: {"retry": True, "solve": False, "blocked": True,
                           "parse": False},
-    # The slide-puzzle interstitial. Solvable, and the one place in this
-    # family of three repos where 2Captcha's solver is load-bearing —
-    # though not on THIS route: it has been observed on TikTok Shop, which
-    # is tiktok-shop-scraper's problem. Carried here as readiness.
-    STATE_CHALLENGE: {"retry": True, "solve": True, "blocked": True,
+    # The slide-puzzle interstitial. `solve` is False: this repo implements
+    # no solver for ByteDance's puzzle, so a solve on this state would be a
+    # promise with nothing behind it. `retry` and `blocked` are True: a
+    # different profile is what has actually worked (tiktok-shop-scraper).
+    STATE_CHALLENGE: {"retry": True, "solve": False, "blocked": True,
                       "parse": False},
     # TikTok's WAF interstitial: HTTP 200, 1,462 bytes, "Please wait...",
     # carrying a JavaScript challenge.

@@ -22,12 +22,8 @@ widget — which is why the bare word is not a challenge marker.
 
 TikTok Shop is the route where a challenge really renders: ByteDance's own
 slide puzzle (`secsdk-captcha`, `captcha_verify_img_slide`). This module
-does NOT implement a task for it. 2Captcha does offer a TikTok method —
-`method=tiktok`, which answers with its own `ERROR_TIKTOK` rather than
-falling through to the generic image path — but the parameters it needs
-for the shop's challenge are not known to this repo, and that is what the
-README says: what THIS REPO implements, never that a captcha "cannot be
-solved" (CLAUDE.md §19).
+does not implement a solver for it, and the engines do not try one — the
+shop's measured way in is a warmed Scraping Browser profile, not a token.
 
 The machinery below — the `turnstile.render` interception, the enterprise
 task types, the variant heuristic — is family core. It is here so that a

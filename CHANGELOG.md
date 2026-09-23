@@ -6,6 +6,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and SemVer as closely as a CLI toolkit can. A patch means **fixes**; where
 a default changes in one, the note leads with it.
 
+## [0.1.1] — 2026-09-23
+
+> **Correction to v0.1.0.** Its `captcha_solver.py` docstring described a
+> 2Captcha captcha-solving method for TikTok as available. That method is
+> deprecated, and the text no longer offers it. The challenge policy for
+> TikTok's slide puzzle now says `solve: False`, which matches what the
+> code does: no solver for it is implemented.
+
 ## [0.1.0] — 2026-09-22
 
 First release. Reads TikTok's EU Ad Library — the transparency endpoint
