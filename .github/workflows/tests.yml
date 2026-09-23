@@ -1,6 +1,6 @@
 name: tests
 
-# Runs the offline suite only. Nothing here touches youtube.com, 2captcha.com
+# Runs the offline suite only. Nothing here touches library.tiktok.com, 2captcha.com
 # or any credential — GitHub Actions has no key, and a CI job that hits a live
 # site fails for reasons that have nothing to do with the commit.
 on:
@@ -197,18 +197,18 @@ jobs:
       - name: Build the image
         # Plain `docker build`, no registry and no push: the point is that the
         # Dockerfile still builds, not that anything is published.
-        run: docker build -t youtube-scraper:ci .
+        run: docker build -t tiktok-ads-scraper:ci .
 
       - name: The entrypoint runs inside the image
         # Its CMD is --help, so a bare `run` exercises the default path. This
         # is the invocation the broken image failed on.
-        run: docker run --rm youtube-scraper:ci
+        run: docker run --rm tiktok-ads-scraper:ci
 
       - name: Chromium is actually installed in the image
         # `playwright install` is the step this job exists to prove, so check
         # the browser is there rather than trusting that the layer succeeded.
         run: |
-          docker run --rm --entrypoint python3 youtube-scraper:ci -c "
+          docker run --rm --entrypoint python3 tiktok-ads-scraper:ci -c "
           from playwright.sync_api import sync_playwright
           with sync_playwright() as p:
               b = p.chromium.launch()
@@ -223,7 +223,7 @@ jobs:
           set -e
           missing=0
           for f in .env smoke_test.py tests sample_output.json; do
-            if docker run --rm --entrypoint sh youtube-scraper:ci -c "test -e /app/$f"; then
+            if docker run --rm --entrypoint sh tiktok-ads-scraper:ci -c "test -e /app/$f"; then
               echo "::error::$f is inside the image and should not be"
               missing=1
             fi

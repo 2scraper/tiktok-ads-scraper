@@ -8,65 +8,37 @@ scrapers, regardless of what URL was requested — this is deliberate, not
 scoped to any one page, because which challenge a visitor meets depends on
 the exit and on what the address has been doing.
 
-WHAT THIS MODULE IS FOR ON YOUTUBE
-----------------------------------
-**Nothing, as measured — and the honest version of that sentence is
-narrow.**
+WHAT THIS MODULE IS FOR ON TIKTOK
+---------------------------------
+**Different things on different routes, and that is the measurement.**
 
-On 2026-09-21, from a bare datacentre address in Finland with no key, no
-proxy and no cookies, YouTube served everything this scraper reads: the
-watch page at 1.36 MB, and 60 consecutive InnerTube pages returning 1,200
-comments with no refusal of any kind. No challenge has ever been rendered
-to this scraper.
+On the profile, embed, video and Ad Library routes, from a bare datacentre
+address with no key and no proxy, TikTok rendered no captcha at all
+(measured 2026-09-22). But "no challenge rendered" is NOT "no captcha
+configured" (CLAUDE.md §18), and the obvious grep lies here the same way it
+lies on other sites in this family: a SERVED profile page carries the word
+`captcha` 25 times. Every one is configuration for TikTok's own SDK, not a
+widget — which is why the bare word is not a challenge marker.
 
-But "no challenge rendered" is NOT "no captcha configured" (CLAUDE.md
-§18), so the served watch page was grepped for the site's own captcha
-configuration the way that section says to. The answer is unusual enough
-to be worth the paragraph, because two of the three obvious greps LIE:
+TikTok Shop is the route where a challenge really renders: ByteDance's own
+slide puzzle (`secsdk-captcha`, `captcha_verify_img_slide`). This module
+does NOT implement a task for it. 2Captcha does offer a TikTok method —
+`method=tiktok`, which answers with its own `ERROR_TIKTOK` rather than
+falling through to the generic image path — but the parameters it needs
+for the shop's challenge are not known to this repo, and that is what the
+README says: what THIS REPO implements, never that a captcha "cannot be
+solved" (CLAUDE.md §19).
 
-    recaptcha              1 hit — and it is a CSS rule,
-                           `.grecaptcha-badge{visibility:hidden}`, in a
-                           stylesheet. No widget, no loader, no sitekey.
-    botguard              13 hits — and every one is a configuration flag
-                           such as `botguard_async_snapshot_timeout_ms`.
-                           Not a challenge; a timeout for one.
-    data-sitekey           0        <captcha-*>   0
-    /recaptcha/api.js      0        turnstile     0
-    hcaptcha               0        SITE_KEY      0
-
-So a reader working from `--dump-html` and grepping for "recaptcha" would
-report that this site runs reCAPTCHA. It does not. What it actually runs
-is **its own attestation** — `bgChallenge` with an `interpreterUrl`,
-Google's BotGuard — which is not a third-party widget, has no sitekey, and
-is not the kind of thing any solver takes a task for. There is nothing
-here for this module to buy.
-
-What YouTube is DOCUMENTED to render when it does refuse is a sign-in
-interstitial ("Sign in to confirm you're not a bot"). That wording is
-carried in `product_parser.BOT_CHALLENGE_MARKERS` and is marked there as
-documented-but-unverified, because this scraper has never seen it. An
-interstitial that demands an ACCOUNT is not a captcha either, and no
-solver clears it.
-
-So this module is insurance on YouTube rather than a route in use. The
-machinery below — the `turnstile.render` interception, the enterprise task
-types, the variant heuristic — is here so that a site which starts
-rendering a solvable challenge is met with tools that already work, and
-every one of its figures comes from a sibling repo rather than from here.
-
-What is NOT true, and must never be written, is that a captcha here
-"cannot be solved". 2captcha solves Cloudflare Turnstile
-(`TurnstileTaskProxyless`), enterprise reCAPTCHA
-(`RecaptchaV2EnterpriseTaskProxyless`) and ordinary v2/v3, and this module
-builds all of them. The only sentence this repo is entitled to is which
-task types it implements and what it has actually met (CLAUDE.md §19).
+The machinery below — the `turnstile.render` interception, the enterprise
+task types, the variant heuristic — is family core. It is here so that a
+route which starts rendering one of those challenges is met with tools that
+already work.
 
 PROVENANCE OF THE FIGURES BELOW
 -------------------------------
 This file is family core and carries measurements taken on SIBLING sites.
-They are evidence about the SOLVER, not about YouTube, and are labelled as
-such so nobody re-reads them as facts about this site — which matters more
-here than usual, because this site has produced no such figures at all:
+They are evidence about the SOLVER, not about TikTok, and are labelled as
+such so nobody re-reads them as facts about this site:
 
   * foodpanda-scraper, 2026-09-16: a Cloudflare Turnstile Challenge page
     solved via the `turnstile.render` interception — all four parameters

@@ -2,8 +2,8 @@
 # container with its own Chromium — for a CI canary run or a scheduled job,
 # not required for local development (`pip install` directly is simpler there).
 #
-#   docker build -t youtube-scraper .
-#   docker run --rm -v "$PWD/out:/out" youtube-scraper \
+#   docker build -t tiktok-ads-scraper .
+#   docker run --rm -v "$PWD/out:/out" tiktok-ads-scraper \
 #     --mode comments \
 #     --pages 3 --out /out/software-engineer
 #

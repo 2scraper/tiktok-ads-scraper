@@ -15,8 +15,8 @@
 # captures themselves stay out of the repo.
 !fixtures_generated.json
 !sample_output.csv
-wellfound_jobs.*
-wellfound_jobs_*.*
+tiktok_ads.*
+tiktok_ads_*.*
 
 # --- working directories, by KIND rather than by name ---------------------
 # CLAUDE.md §24: a sibling listed `live_results/` and a 1.5 MB raw capture

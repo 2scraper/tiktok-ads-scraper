@@ -212,8 +212,8 @@ def dedupe_by_key(rows: Sequence[Any], seen: Set[str], key: str = "sku") -> List
     a repeated page then re-parses without duplicating its rows into the
     final output.
 
-    On YouTube a drop here is unexpected but not impossible, which is why
-    the count is logged rather than quietly applied. Sixty consecutive
+    A drop here is logged rather than quietly applied, because on a live
+    feed it is the site's window moving rather than a fault. Sixty consecutive
     pages of one video returned 1,200 comment ids and 1,200 distinct ones
     on 2026-09-21, so adjacent pages do not overlap by design.
 
@@ -334,31 +334,19 @@ EXIT_NO_PRODUCTS = 4
 
 # Exit code for a run blocked by a bot-check/challenge page before parsing
 # even started — distinct from EXIT_NO_PRODUCTS so a caller can tell "the
-# search genuinely matched nothing" from "something stood between us and the
-# content". See product_parser.detect_bot_challenge.
+# site genuinely had nothing" from "something stood between us and the
+# content".
 #
-# On YouTube this code does NOT cover the two states that look like it and
-# are not. A video whose comments are TURNED OFF answers HTTP 200 with a
-# comment section holding a message instead of a token: the request was
-# served exactly as asked, the answer is that there are no comments, and
-# that is EXIT_NO_PRODUCTS. A video that does not exist or has been taken
-# down answers 200 with `backgroundPromoRenderer` and no comment section at
-# all — also not a block. Reporting either as blocked sends a user hunting
-# for a proxy problem that does not exist.
+# On TikTok this code does NOT cover the states that look like it and are
+# not: a handle with no account, a video that is gone, a shop page with no
+# product on it. Each answers HTTP 200 with the site's own statement that
+# there is nothing there, and each is EXIT_NO_PRODUCTS. Reporting one as
+# blocked sends a user hunting for a proxy problem that does not exist.
 #
-# What EXIT_BLOCKED would mean here is largely unmeasured, and saying so is
-# more use than inventing a description. Measured 2026-09-21 from a bare
-# Finnish datacentre address with no proxy and no key: 60 consecutive
-# InnerTube pages, all HTTP 200, no refusal of any kind. Every candidate
-# text marker counted on known-good captures fired on GOOD pages —
-# `consent.youtube.com` 4 times, `botguard` 13, `recaptcha` once — so none
-# of them is carried (CLAUDE.md §18).
-#
-# What IS carried is the HTTP status (401/403/429) and the two sentences
-# YouTube is documented to use when it demands a sign-in. Neither sentence
-# has been observed from here, and they are marked unverified in
-# product_parser rather than described as measured. If a run reports exit
-# 3, the saved debug payload is the evidence, and it is new.
+# What IS blocked here, measured 2026-09-22: TikTok's zero-length HTTP 200
+# on its API routes, its WAF interstitial ("Please wait..."), and the shop's
+# slide-puzzle captcha. All three answer HTTP 200, which is why the status
+# alone decides nothing and the classifier reads the body.
 EXIT_BLOCKED = 3
 
 # Exit code for a run that gathered SOME rows and then stopped early — a
@@ -442,42 +430,13 @@ def run_meta(status: str, stop_reason: str, pages_requested: int,
       partial  — rows were gathered, then the run stopped early
       failed   — nothing was gathered at all
 
-    `mode` and `source` are recorded because `mode` is not implied by the
-    repo: the same output prefix can hold a listings run, a job run or a
-    careers run, and those populate different columns — a listings row has
-    the site's `domain` and its slot counters, a job row has the company
-    website and a currency, a careers row has a department and an Ashby
-    apply URL. `diff_runs.py` refuses a pair whose modes or sources differ,
-    which matters more here than on most sites in this family: a careers run
-    and a marketplace run have NO ids in common at all, so a diff of the two
-    would report every row as both added and removed.
+    `mode` and `source` are recorded because a consumer holding files from
+    several tiktok-* repos needs to tell them apart without knowing which
+    repo wrote which. `diff_runs.py` refuses a pair whose modes differ.
 
-    `source` is `youtube.com` on every row of every run. The site answers
-    on four hosts and this column names the SITE rather than the host, so
-    one value covers all of them; which host a URL was given as is
-    recoverable from `url`. It is kept because consumers read these columns
-    by name across the family.
-
-    `extra` carries facts about the run that are not about any single row,
-    and on this site the most important one is how small a run is. YouTube
-    states its own total in the comment section header — 2,457,619 on the
-    video used for this repo's fixtures — so `extra` records
-    `total_comments`, `comments_collected` and the percentage between them,
-    plus `sort`, the `client_version` the run spoke and whether replies
-    were expanded.
-
-    That is the only honest way to say what a run holds, because "complete"
-    and "exhaustive" come apart badly here (CLAUDE.md §21). A 5-page run
-    fetched every page it was asked for and is genuinely `complete`. It is
-    also 100 comments out of two and a half million, which is 0.004% — and
-    nothing in the row count reveals that.
-
-    `pages_failed` lists the pages that did not yield data, by number.
-    `pages_completed` alone was enough only while pages were fetched strictly
-    in order, where "3 of 10 completed" could only mean 1-2-3: a count is not
-    a description once pages can be fetched independently and page 3 can fail
-    while 4 and 5 succeed. Recording the numbers keeps the sidecar honest
-    about WHICH part of the catalogue is missing, not just how much.
+    `extra` carries facts about the run that are not about any single row —
+    most importantly, where the route makes it possible, how small a sample
+    the run is of what the site holds.
     """
     meta = {
         "source": source,
@@ -548,55 +507,13 @@ def save(rows: Sequence[Any], out_prefix: str, fmt: str,
 # the weaker signal — a renamed attribute looks identical to a short
 # catalogue.
 #
-# On YouTube the third signal is the strongest one available, and it is
-# neither of those: the site hands out the NEXT page's token inside the
-# page it just served. There is no `?page=N` to construct and no selector
-# to go stale — a response either carries a continuation token or it is the
-# last page, and "pagination_exhausted" means the site said so itself.
-#
-# That is also why this repo cannot plan page URLs ahead (CLAUDE.md §7):
-# page 5's token is unknowable until page 4 has been read, so a comments
-# run is strictly sequential and `--concurrency` above 1 is refused for it
-# with that reason. `--mode video` parallelises across VIDEOS instead,
-# which is the unit that actually has independent addresses.
-#
-# "page_cap_reached" fires when `--pages` runs out with the site still
-# offering more, which is the normal end of a run here.
-# "page_echo_mismatch" is carried for the family's shared vocabulary and
-# cannot fire: this site is never asked for a page by number, so it has no
-# number to echo back.
-#
-# "single_page_route" is what a `--mode video` run reports: one video is
-# one response, and there is no second page of it to miss.
-#
-# Note what it does NOT mean on this site: a `complete` comments run holds
-# every page it asked for, which is almost never every comment the video
-# has. CLAUDE.md §21 — complete and exhaustive are different words — and
-# the sidecar records the site's own total beside the collected count so a
-# consumer is not left inferring one from the other.
-# `video_unavailable` is in this set, and it has to be. It describes a run
-# that ASKED and got a real answer — TikTok returned no video for the id,
-# or no videos for the account — so the honest code for a zero-row run is
-# 4 ("we asked, and the answer was nothing") and not 5 ("we never got the
-# content").
-#
-# `empty_success` is deliberately NOT in it. That one is TikTok's HTTP 200
-# with a zero-length body, which looks like an answer and is a refusal; a
-# run that saw only those got nothing and must say so.
-#
-# Left out, they cost exactly that: measured 2026-09-22, both returned
-# exit 5, where the same two URLs returned 4 the day before. The exit-5
-# rule that introduced it is right and stays — it keys on `not complete`
-# rather than on a list of failure names, precisely so a new reason cannot
-# fall silently through to "the catalogue is empty". What was wrong was
-# this set, which described only the ways a PAGINATION LOOP can end and
-# not the ways a site can answer.
-#
-# The lesson generalises past these two names: when a rule keys on "is
-# this reason complete", every reason has to be classified, including the
-# ones that are complete answers about an empty result. A reason nobody
-# added here defaults to "we failed", which is the opposite of silent but
-# is still wrong.
+# On TikTok the strongest end-of-listing signal is neither of those: where
+# a route paginates at all, the response itself states what it served —
+# the embed route's own `page` field, the Ad Library's `search_id` cursor
+# — and that statement is what ends a run. A route that answers every page
+# number with page one (the embed route does exactly this) is refused
+# `--pages` above 1 rather than re-collected.
+
 COMPLETE_STOP_REASONS = ("completed", "pagination_exhausted", "no_new_products",
                          "page_cap_reached", "page_echo_mismatch",
                          "single_page_route", "no_ads_found")

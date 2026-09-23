@@ -48,11 +48,10 @@ and the same answer to `--replies`. The first is refused outright; the
 other two are reported as notes, because a smaller run is still worth
 diffing as long as the reader knows what `removed` can mean.
 
-YouTube states its own comment total in the section header, so there IS a
-site-stated figure to compare a run against — and the sidecar records it
-beside what the run actually collected (`total_comments`,
-`comments_collected`, `sample_share_pct`). A five-page run of a video with
-two and a half million comments is `complete` and is 0.004% of it.
+Where a route states its own total — the Ad Library does, per region — the
+sidecar records it beside what the run collected, and a diff should be read
+in that light: a capped run's `removed` can mean "outside this run's slice"
+rather than "gone".
 
 **`position` and `page` are deliberately not tracked, and here that is a
 necessity rather than a choice.** Under `--sort top` the order IS the
@@ -379,19 +378,17 @@ def _check_comparable(args) -> bool:
                 f"added and removed.")
         else:
             problems.append(
-                f"the two runs are different modes ({modes}). A search row "
-                f"and a watch row carry different columns — a watch row "
-                f"has the exact upload date, the duration and the "
-                f"category, a search row has none of them — so "
+                f"the two runs are different modes ({modes}). Rows from "
+                f"different modes carry different columns, so "
                 f"`added`/`removed` would describe the mode change rather "
                 f"than the site.")
 
-    # A SORT GUARD, and unlike most repos in this family this site needs
-    # one. YouTube offers two orderings of the same thread — `top`, its
-    # relevance ranking, and `newest` — and they decide WHICH comments a
-    # capped run holds, not merely the order of the file. Two 5-page runs
-    # of the same video under different sorts are different SAMPLES, and
-    # diffing them reports the sampling as though the site had changed.
+    # A SORT GUARD, family core. Where rows carry a `sort` column, two runs
+    # under different orderings are different SAMPLES of a capped listing,
+    # and diffing them reports the sampling as though the site had
+    # changed. No tiktok-* row carries one today, so this guard is inert
+    # here — kept rather than deleted so a route that gains an ordering is
+    # guarded from its first run.
     #
     # `sort` is therefore a column rather than a sidecar field, so this
     # guard reads what is actually in the rows rather than trusting
@@ -405,10 +402,9 @@ def _check_comparable(args) -> bool:
                         else meta.get("sort") or "?")
     if len(set(sorts.values())) > 1 and "?" not in sorts.values():
         problems.append(
-            f"the two runs used different orderings ({sorts}). `top` is "
-            f"YouTube's relevance ranking and `newest` is chronological; a "
-            f"run that stops after N pages holds a different SET of "
-            f"comments under each, so the diff would report the sampling "
+            f"the two runs used different orderings ({sorts}). A run "
+            f"that stops after N pages holds a different SET of rows under "
+            f"each, so the diff would report the sampling "
             f"rather than the site.")
 
     # And whether either run was CAPPED, which changes what `removed` means.
@@ -461,7 +457,7 @@ def _check_comparable(args) -> bool:
 
 def parse_args():
     p = argparse.ArgumentParser(
-        description="Diff two youtube-scraper JSON outputs by sku.")
+        description="Diff two tiktok-ads-scraper JSON outputs by sku.")
     p.add_argument("--old", required=True, help="Earlier run's JSON output.")
     p.add_argument("--new", required=True, help="Later run's JSON output.")
     p.add_argument("--out", default=None,

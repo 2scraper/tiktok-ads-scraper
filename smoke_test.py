@@ -926,22 +926,15 @@ def check_sidecar_shape():
     from output_writer import run_meta
     meta = run_meta(status="complete", stop_reason="single_page_route",
                     pages_requested=1, pages_completed=1, pages_failed=[],
-                    products=390, mode="listings", source="mercor.com",
-                    start_url="https://work.mercor.com/explore",
-                    final_url="https://work.mercor.com/explore",
-                    extra={"records_in_payload": 390, "urls_in_itemlist": 326,
-                           "pages_available": 1, "route_is_paginated": False})
+                    products=3, mode="profile", source="tiktok.com",
+                    start_url="https://www.tiktok.com/@nasa",
+                    final_url="https://www.tiktok.com/@nasa",
+                    extra={"pages_available": 1, "route_is_paginated": False})
     for key in ("status", "stop_reason", "pages_requested", "pages_completed",
                 "pages_failed", "mode", "source"):
         check("the sidecar records %r" % key, key in meta)
-    equal("the sidecar carries how many records the payload held",
-          meta["records_in_payload"], 390)
-    # Both views, because the response has two and they disagree. Without
-    # the second number a reader cannot tell that the site's own structured
-    # index is 64 entries short of its own payload — which is the whole
-    # reason this scraper does not read that index.
-    equal("...and how many the site's own ItemList indexed",
-          meta["urls_in_itemlist"], 326)
+    equal("the sidecar carries run facts that are about no single row",
+          meta["pages_available"], 1)
     equal("...and whether this route is addressable page by page",
           meta["route_is_paginated"], False)
     equal("pages_failed is a LIST of numbers, not a count",
@@ -1143,11 +1136,9 @@ def check_banned_and_removed_flags():
     """Scoped to the ENGINES.
 
     `--country` is banned on the engines and there is no exception here:
-    YouTube serves one site, and a country flag on a scraper could only
-    contradict what the URL already says. The InnerTube `gl` this repo
-    does take is `--region`, which is a rendering hint to the site rather
-    than a claim about where the request comes from, and it is named
-    differently for exactly that reason. On `fingerprint_client.py` the
+    a country flag on a scraper could only contradict what the URL (or,
+    on the Ad Library, `--region`) already says, and where a request
+    EXITS is the proxy's business, not the scraper's. On `fingerprint_client.py` the
     name `--country` is legitimate — there it picks a fingerprint locale,
     not a target — which is why this check is scoped to the engines rather
     than to the tree (CLAUDE.md §10).
@@ -1731,7 +1722,7 @@ def check_a_dead_proxy_is_reported_as_a_proxy_failure():
 def check_engines_do_not_evaluate_a_string_in_the_browser():
     """§18: a site whose CSP omits `unsafe-eval` kills wait_for_function with
     an EvalError and takes the run down with exit 1, on the site's most
-    obvious URL. Mercor has not been measured for that, and the cheap habit
+    obvious URL. TikTok's CSP allows eval today, and the cheap habit
     costs nothing on a site that would have allowed it."""
     for module in ENGINES:
         path = os.path.join(HERE, module + ".py")

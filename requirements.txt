@@ -1,4 +1,4 @@
-# mercor-scraper — core dependencies
+# tiktok-ads-scraper — core dependencies
 #
 #   pip install -r requirements.txt
 #

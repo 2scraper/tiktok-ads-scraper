@@ -1,5 +1,13 @@
 # tiktok-ads-scraper
 
+[![release](https://img.shields.io/github/v/release/2scraper/tiktok-ads-scraper?sort=semver)](https://github.com/2scraper/tiktok-ads-scraper/releases)
+[![tests](https://github.com/2scraper/tiktok-ads-scraper/actions/workflows/tests.yml/badge.svg)](https://github.com/2scraper/tiktok-ads-scraper/actions/workflows/tests.yml)
+[![canary](https://github.com/2scraper/tiktok-ads-scraper/actions/workflows/canary.yml/badge.svg)](https://github.com/2scraper/tiktok-ads-scraper/actions/workflows/canary.yml)
+[![python](https://img.shields.io/badge/python-3.9%20%7C%203.12-blue)](pyproject.toml)
+[![licence](https://img.shields.io/badge/licence-MIT-green)](LICENSE)
+[![engines](https://img.shields.io/badge/engines-Playwright%20%7C%20Selenium%20%7C%20pyppeteer%20%7C%20CDP-informational)](#quick-start)
+[![runs without an account](https://img.shields.io/badge/runs%20without-an%20account-brightgreen)](#you-do-not-need-a-key-a-proxy-or-an-account)
+
 Extract advertisements from **TikTok's EU Ad Library** — the advertiser,
 the creatives, the dates an ad ran, TikTok's own audience bucket, and the
 policy reason where an ad was rejected. 33 regions.

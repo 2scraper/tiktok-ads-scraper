@@ -1,29 +1,23 @@
-"""http_transport.py — the InnerTube endpoint without a browser.
+"""http_transport.py — a page, fetched without a browser.
 
 Why this exists
 ===============
-This repo's own README says the thing that makes this module obvious: the
-endpoint YouTube's front end calls answers a bare HTTP POST with no key,
-no cookies, no account and no browser. Measured 2026-09-21 from a
-datacentre address, 60 consecutive pages with no refusal of any kind.
-
-Everything else here then drove a browser anyway, because that is what
-this family of scrapers does. Measured on the same machine, one page of
-twenty comments:
-
-    browser (Playwright, Chromium)   3.1 s
-    plain HTTP, identical work       0.9 s
-
-So the browser cost 3.5x and bought nothing on the path that matters. A
-third-party audit put it more sharply than the code did and it was right.
+Most TikTok routes this family reads are server-rendered: the profile
+page, the embed page and the video page all carry their whole payload in
+the document, and all three were served to a bare HTTP client from a
+datacentre address with no key and no cookies (measured 2026-09-22). A
+browser on those routes costs a Chromium start and buys nothing — measured
+on the profile route, three accounts end to end: 1.54 s over HTTP against
+3.38 s through a browser, identical rows.
 
 What this is NOT
 ================
-Not a replacement for the browser engines. It is the DEFAULT for a site
-that does not challenge, and the browser is what `--transport auto` falls
-back to the moment one does — because an HTTP client has nowhere to put a
-solved token, no cookie jar a challenge issuer will accept, and no DOM.
-That fallback is the whole reason the engines stay.
+Not a replacement for the browser engines. It is the DEFAULT where a route
+does not challenge, and the browser is what `--transport auto` falls back
+to the moment one does — because an HTTP client has nowhere to put a
+solved token, no cookie jar a challenge issuer will accept, and no DOM. On
+TikTok that fallback is load-bearing rather than theoretical: the WAF
+interstitial a residential exit sometimes gets is cleared by a browser.
 
 The interface is the one `_BrowserSession` already presents, so everything
 above the transport in an engine is unchanged: `get_text`, `post_json`,
@@ -124,7 +118,7 @@ class HttpSession:
 
         There is no navigation here — no cookies set by script, no JS. What
         it IS good for is the one thing `_prime_session` needs a page for:
-        reading the live InnerTube client version out of the document.
+        reading anything the site states in the document.
         """
         status, text = self.get_text(url)
         self._url = url

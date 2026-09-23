@@ -24,7 +24,7 @@ jobs:
     # which put a permanently red check on every pull request. A check that is
     # always red teaches everyone to ignore checks. Set the secret to turn
     # this on:
-    #     gh secret set CLAUDE_CODE_OAUTH_TOKEN --repo 2scraper/youtube-scraper
+    #     gh secret set CLAUDE_CODE_OAUTH_TOKEN --repo 2scraper/tiktok-ads-scraper
     # `secrets` is not available in a job-level `if`, so the presence test goes
     # through env and is read by the step.
     env:

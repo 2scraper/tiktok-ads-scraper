@@ -5,7 +5,7 @@
 # ----------------------------------------
 # CLAUDE.md §11 says a canary that cannot pass must SKIP rather than fail,
 # because a check that is always red teaches everyone to ignore checks. The
-# other half of that rule is §21's, proven again on rakuten-scraper: a
+# other half of that rule is §21's, proven on bbb-scraper and rakuten-scraper: a
 # canary that CAN pass without a credential should never be gated on one.
 #
 # This repo is the second case. Its central README claim is that TikTok's

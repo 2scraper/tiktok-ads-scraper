@@ -298,13 +298,15 @@ class _Loop:
             pass
 
 
-# The InnerTube call, made from inside the page.
+# A `fetch` made from inside the page.
 #
-# A `fetch` on the site's own origin, so it carries the same cookies, the
-# same proxy and the same user agent the browser has — which is the whole
-# reason a browser is involved at all. A function EXPRESSION, never an
-# evaluated string: YouTube's Content-Security-Policy has no `unsafe-eval`
-# (CLAUDE.md §18).
+# On the site's own origin, so it carries the same cookies, the same proxy
+# and the same user agent the browser has — which is the whole reason a
+# browser is involved at all. A function EXPRESSION, never an evaluated
+# string: TikTok's CSP does carry `unsafe-eval` today (measured
+# 2026-09-22), but a CSP is a per-route header a site can tighten without
+# notice, and CLAUDE.md §18 records a sibling whose run died on exactly
+# that.
 _FETCH_JS = """
 async (spec) => {
   const init = {method: spec.method, headers: spec.headers,
@@ -317,7 +319,7 @@ async (spec) => {
 
 
 class _BrowserSession:
-    """A browser, a page on youtube.com, and a fetch primitive bound to it.
+    """A browser, a page on tiktok.com, and a fetch primitive bound to it.
 
     A rotation is a FRESH BROWSER (CLAUDE.md §8): cookies a bot manager
     issued against exit A and replayed from exit B are a stronger signal
@@ -850,7 +852,7 @@ def _handle_captcha_in_browser(session, args,
 
 
 # ---------------------------------------------------------------------------
-# One InnerTube call, with the family's retry / block policy around it
+# One fetch, with the family's retry / block policy around it
 # ---------------------------------------------------------------------------
 
 

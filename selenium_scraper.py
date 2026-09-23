@@ -172,15 +172,15 @@ def _proxy_failure(exc: Exception) -> str:
     return ""
 
 
-# The InnerTube call, made from inside the page.
+# A `fetch` made from inside the page.
 #
-# A `fetch` on the site's own origin, so it carries the same cookies and
-# the same proxy the browser has. Note the DIALECT: this is a function
-# BODY, taking its argument from `arguments[0]` and signalling completion
-# through the callback in `arguments[arguments.length - 1]`. Playwright and
-# pyppeteer take `() => expr` for the same job. Spelling it three ways is
-# unavoidable; letting either spelling reach a shared module is not
-# (CLAUDE.md §1).
+# On the site's own origin, so it carries the same cookies, the same proxy
+# and the same user agent the browser has — which is the whole reason a
+# browser is involved at all. A function EXPRESSION, never an evaluated
+# string: TikTok's CSP does carry `unsafe-eval` today (measured
+# 2026-09-22), but a CSP is a per-route header a site can tighten without
+# notice, and CLAUDE.md §18 records a sibling whose run died on exactly
+# that.
 _FETCH_JS = """
 var spec = arguments[0];
 var done = arguments[arguments.length - 1];
@@ -198,7 +198,7 @@ fetch(spec.url, init).then(function (response) {
 
 
 class _BrowserSession:
-    """A driver, a page on youtube.com, and a fetch primitive bound to it.
+    """A driver, a page on tiktok.com, and a fetch primitive bound to it.
 
     A rotation is a FRESH BROWSER (CLAUDE.md §8): cookies a bot manager
     issued against exit A and replayed from exit B are a stronger signal
@@ -280,7 +280,7 @@ class _BrowserSession:
 
         Wrapped in `return (…)(arg)` because `execute_script` takes a
         function BODY, where the shared captcha module hands out `() =>
-        expr`. Never an evaluated string on the page's own terms: YouTube's
+        expr`. Never an evaluated string on the page's own terms: a site's
         Content-Security-Policy has no `unsafe-eval` (CLAUDE.md §18), and
         `execute_script` goes through the WebDriver protocol rather than
         through the page's `eval`.
@@ -664,7 +664,7 @@ def _handle_captcha_in_browser(session, args,
 
 
 # ---------------------------------------------------------------------------
-# One InnerTube call, with the family's retry / block policy around it
+# One fetch, with the family's retry / block policy around it
 # ---------------------------------------------------------------------------
 
 

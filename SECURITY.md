@@ -11,7 +11,7 @@ public from the moment you press submit.
 
 If private reporting is unavailable to you, mail support@2captcha.com. That is
 2Captcha's general support address rather than a security-only one, so put
-**"mercor-scraper security"** in the subject — otherwise it lands in a queue
+**"tiktok-ads-scraper security"** in the subject — otherwise it lands in a queue
 about API keys and billing and takes longer to reach the right person.
 
 **What helps most:** the version you are on (commit hash), the exact command,
@@ -53,10 +53,10 @@ In scope:
 
 Not because these do not matter, but because they belong somewhere else:
 
-- **Bypassing Mercor's bot protection.** This scraper drives an ordinary
-  browser and passes challenges the way a browser does. Anything about how
-  Cloudflare behaves is not a vulnerability in this repository.
-- **The scraper stopped working.** Mercor changing its markup is expected —
+- **Bypassing TikTok's bot protection.** This scraper reads what TikTok
+  serves and reports a challenge as a challenge. How TikTok's own captcha or
+  WAF behaves is not a vulnerability in this repository.
+- **The scraper stopped working.** TikTok changing its pages is expected —
   file it as a normal issue, there is a template for exactly that.
 - **Anything about 2Captcha's services** — the solver API, the Scraping Browser
   API, proxies, fingerprints, billing, quotas. This repository is only a client
@@ -79,9 +79,8 @@ Not because these do not matter, but because they belong somewhere else:
 
 ## Supported versions
 
-`main` only. This project has no releases or version tags; fixes land on `main`
-and you update by pulling. If you are running an old clone, update before
-reporting.
+The latest release and `main`. Fixes land on `main` first and are tagged in
+`CHANGELOG.md`; if you are running an old clone, update before reporting.
 
 ## If you have leaked a key
 
@@ -99,8 +98,8 @@ it is recoverable. In order:
 Three places leak credentials that people do not expect, because unlike our own
 log lines they are **not** masked:
 
-- **raw HTML dumps** (`--dump-html`, and the automatic dump on a zero-product
-  run) — these can contain session cookies
+- **raw page dumps** (`--dump-html`) — a page fetched through a Scraping
+  Browser profile can carry that profile's session
 - **the Scraper API's `x-debug` response header**
 - **your shell history**, if you passed a key on the command line
 
