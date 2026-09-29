@@ -229,6 +229,11 @@ def _run_status(path: str) -> Tuple[Optional[str], Optional[dict]]:
     return meta.get("status"), meta
 
 
+# What a run ASKED, as recorded in its sidecar by every engine.
+QUESTION_FIELDS = ("query", "query_type", "regions_requested", "ad_type",
+                   "window_days")
+
+
 def _check_comparable(args) -> bool:
     """Refuse an assortment diff between runs that are not both complete.
 
@@ -264,6 +269,25 @@ def _check_comparable(args) -> bool:
                 f"{label} ({path}) was a {status!r} run — stopped after "
                 f"{meta.get('pages_completed')} of {meta.get('pages_requested')} "
                 f"page(s), reason {meta.get('stop_reason')!r}")
+    # The QUESTION each run asked. Two complete runs over a different
+    # keyword, region set, ad type or window are different SAMPLES of the
+    # library, and diffing them reports the sampling as if ads had started
+    # or stopped. Only fields both sidecars state are compared, so a run
+    # written before these were recorded is not refused for lacking them.
+    metas = {label: (_run_status(path)[1] or {})
+             for label, path in (("--old", args.old), ("--new", args.new))}
+    for key in QUESTION_FIELDS:
+        vals = {label: m.get(key) for label, m in metas.items() if key in m}
+        if len(vals) == 2:
+            a, b = vals["--old"], vals["--new"]
+            if isinstance(a, list) and isinstance(b, list):
+                a, b = sorted(map(str, a)), sorted(map(str, b))
+            if a != b:
+                problems.append(
+                    f"the two runs asked different questions: {key} "
+                    f"{vals['--old']!r} vs {vals['--new']!r}. Rows outside "
+                    f"the overlap would read as ads that started or "
+                    f"stopped.")
     if len(set(modes.values())) > 1:
         problems.append(
             f"the two runs are different modes ({modes}). Rows from "

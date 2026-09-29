@@ -740,7 +740,11 @@ def _fetch_with_policy(session_box: Dict[str, Any], pw, args,
     status = payload = None
     state = STATE_UNKNOWN
 
-    for attempt in range(1, attempts + 1):
+    # A while rather than a for: switching transport below grants
+    # one more attempt, and range() is fixed when the loop starts.
+    attempt = 0
+    while attempt < attempts:
+        attempt += 1
         session = session_box["session"]
         # First of the two solve call sites: clear a challenge BEFORE the
         # answer is judged, so a gated page is not classified on its
@@ -813,6 +817,11 @@ def _fetch_with_policy(session_box: Dict[str, Any], pw, args,
                 session_box["session"] = _open_session(pw, args, pool)
                 _prime_session(session_box["session"], args,
                                session_box["prime_url"])
+                # The switch is not a retry: it is the same page asked
+                # through the transport that can answer it. Without the
+                # extra attempt, `--retries 0` started a browser and
+                # never asked it for the page (audit 2026-09-29).
+                attempts += 1
                 continue
             # Second call site, same budget.
             if page_flow.should_solve(state):
@@ -840,7 +849,14 @@ def _fetch_with_policy(session_box: Dict[str, Any], pw, args,
                     label, state, attempt, attempts - 1, args.retry_delay)
         time.sleep(args.retry_delay)
 
-    return status, payload, state, blocked_seen
+    # `blocked` means the page ENDED refused, not that a refusal was met
+    # on the way: a retry that got the content is a recovered page.
+    # Reporting it as blocked turned a complete run into exit 6 /
+    # stop_reason blocked with pages_failed [] — measured live on
+    # 2026-09-29, pyppeteer, @nasa: one empty HTTP 200, then the
+    # profile, then "partial".
+    return (status, payload, state,
+            blocked_seen and not page_flow.should_parse(state))
 
 
 # ---------------------------------------------------------------------------
@@ -1045,7 +1061,10 @@ def _run_ads(session_box, pw, args, pool) -> Tuple[List[Any], Dict[str, Any]]:
                 break
 
         per_region[region] = got_here
-        if got_here == 0 and region not in [r for r in failed]:
+        # `failed` holds region NUMBERS (they become `pages_failed`), so the
+        # old `region not in failed` compared a string against ints and
+        # listed every failed region as one that simply had no ads.
+        if got_here == 0 and index not in failed:
             empty.append(region)
 
     if blocked:
@@ -1065,6 +1084,13 @@ def _run_ads(session_box, pw, args, pool) -> Tuple[List[Any], Dict[str, Any]]:
         "pages_failed": failed or None,
         "blocked": blocked,
         "regions_requested": regions,
+        # The QUESTION, recorded so diff_runs.py can refuse to compare two
+        # runs that asked different ones: a different keyword, ad type or
+        # window is a different sample, not a change on the site.
+        "query": args.query or None,
+        "query_type": search_body(args.query).get("query_type") or None,
+        "ad_type": args.ad_type,
+        "window_days": int(args.days),
         "pages_per_region_requested": int(args.pages),
         "ads_seen_twice": overlap or None,
         "regions_without_ads": empty or None,
