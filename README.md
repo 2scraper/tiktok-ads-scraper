@@ -53,6 +53,12 @@ python3 -m venv venv
 ./venv/bin/python playwright_scraper.py --region DE
 ```
 
+**One clone, one virtualenv.** The four tiktok-* repos share top-level
+module names (`product_parser`, `output_writer`, `playwright_scraper`, …),
+so `pip install .` of two of them into one environment makes the second
+silently replace the first. The commands above never do that — keep it
+that way, and give each repo its own venv.
+
 Several regions, deeper, both formats:
 
 ```bash
@@ -169,11 +175,21 @@ return a body that is not JSON at all, while DE, FR and GB return ads.
 | 1 | crash |
 | 2 | bad usage |
 | 3 | blocked |
-| 4 | zero ads — including "the query matched nothing", which is a real answer |
+| 4 | zero ads — including "the query matched nothing", which is a real answer (the library says `total: 0`) |
 | 5 | the content was never obtained |
 | 6 | partial |
 
 **A run that finds nothing writes nothing.** `--allow-empty` is the opt-out.
+
+**`--query` filters since v0.1.2, and did not before.** Until then the
+keyword was sent without the search type the library's own UI sends, and
+the library ignored it: measured 2026-09-29 in DE over the same window,
+`nike` and a nonsense word both answered the whole region (19,000,309 and
+19,000,308); with the type, `nike` answered 416 and the nonsense word 0.
+A keyword search matches more than the advertiser's name, so rows from
+resellers are expected. The sidecar records `query`, `query_type`,
+`ad_type` and `window_days`, and `diff_runs.py` refuses two runs that
+asked different questions.
 
 An HTTP 421 mid-run is **not** a block: it means the token went stale, and
 the remedy is to mint another, which the run does by re-priming. Rotating

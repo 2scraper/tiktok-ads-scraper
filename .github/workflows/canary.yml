@@ -148,6 +148,48 @@ jobs:
                 f"than one region, status {meta['status']}")
           PY
 
+      # The keyword must FILTER. Audit 2026-09-29: with the wrong
+      # query_type the library ignored the keyword and answered the whole
+      # region, and every run still looked healthy. A positive and a
+      # negative control, compared with each other rather than against a
+      # fixed number, since the totals are a live count.
+      - name: A keyword filters, and a nonsense word matches nothing
+        run: |
+          set +e
+          python playwright_scraper.py --region DE --pages 1 --query nike \
+            --out canary_kw
+          kw=$?
+          python playwright_scraper.py --region DE --pages 1 \
+            --query zzqxjvwkplmq --out canary_none
+          none=$?
+          set -e
+          python - "$kw" "$none" <<'PY'
+          import json, sys
+          kw, none = int(sys.argv[1]), int(sys.argv[2])
+          fail = []
+          region = json.load(open("canary_ads.meta.json"))
+          whole = (region.get("site_total_per_region") or {}).get("DE")
+          if kw != 0:
+              fail.append(f"keyword run exit {kw}")
+          else:
+              meta = json.load(open("canary_kw.meta.json"))
+              got = (meta.get("site_total_per_region") or {}).get("DE")
+              if meta.get("query_type") != "1":
+                  fail.append(f"query_type {meta.get('query_type')!r}")
+              if not got or not whole or got >= whole / 100:
+                  fail.append(f"'nike' matched {got} of the region's "
+                              f"{whole} — the keyword is not filtering")
+          if none != 4:
+              fail.append(f"a nonsense keyword exited {none}, expected 4 "
+                          f"(the site's own 'nothing matched')")
+          if fail:
+              print("::error::keyword control FAILED")
+              for line in fail:
+                  print(f"  - {line}")
+              sys.exit(1)
+          print("keyword control OK")
+          PY
+
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -156,6 +198,7 @@ jobs:
             canary_ads.json
             canary_ads.csv
             canary_ads.meta.json
+            canary_kw.meta.json
           retention-days: 7
 
   # NO paid job here, deliberately.

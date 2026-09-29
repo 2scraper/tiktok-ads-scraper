@@ -2529,6 +2529,177 @@ def check_scraper_api_waitfor_is_object_and_status_is_http_code():
           status == 403 and isinstance(status, int))
 
 
+def check_a_keyword_is_sent_with_the_type_that_makes_it_filter():
+    """Audit 2026-09-29, reproduced live the same day: with query_type ""
+    the keyword was ignored — `nike` and a nonsense word both answered
+    the whole region (19,000,309 and 19,000,308). The UI sends "1", and
+    with it `nike` answered 416 and the nonsense word 0."""
+    body = product_parser.search_body("nike")
+    equal("a keyword is sent with query_type '1'", body["query_type"], "1")
+    equal("...and the keyword itself", body["query"], "nike")
+    equal("no keyword leaves query_type empty, the measured region listing",
+          product_parser.search_body()["query_type"], "")
+
+
+def check_the_envelope_is_judged_before_any_row():
+    """The endpoint answers everything with HTTP 200; its envelope is the
+    only place a failure or an empty answer is stated."""
+    judge = product_parser.detect_page_state
+    # Verbatim, captured 2026-09-29 for a keyword that matched nothing.
+    # It has NO `data` key; read as an error it made every empty search
+    # exit 5.
+    empty = {"total": 0, "has_more": False,
+             "search_id": "eyJuZXh0X2N1cnNvciI6MTJ9", "code": 0}
+    equal("the site's own 'nothing matched' is no_ads", judge(empty, 200),
+          product_parser.STATE_NO_ADS)
+    equal("...and so is its JSON text",
+          judge(json.dumps(empty), 200), product_parser.STATE_NO_ADS)
+    equal("a non-zero code is the API refusing, whatever data holds",
+          judge({"code": 500, "data": []}, 200), product_parser.STATE_ERROR)
+    equal("...also as text", judge(json.dumps({"code": 500, "data": []}), 200),
+          product_parser.STATE_ERROR)
+    equal("data that is not a list is the schema changing",
+          judge({"code": 0, "data": {}}, 200), product_parser.STATE_PARSE_ERROR)
+    equal("a real page is still content",
+          judge(payload("de_page1"), 200), product_parser.STATE_CONTENT)
+    try:
+        product_parser.parse_search({"code": 0, "data": [{}]}, "DE", "T", 1,
+                                    output_writer.Advertisement)
+        check("records with no id raise rather than read as 'no ads'", False)
+    except product_parser.PayloadError:
+        check("records with no id raise rather than read as 'no ads'", True)
+
+
+def check_a_failed_region_is_not_reported_as_empty():
+    """`failed` holds region NUMBERS; comparing a region NAME against it
+    listed a failed region under `regions_without_ads` — an error
+    reported as the answer "this region has no ads"."""
+    for name in ENGINES:
+        engine = _import_engine(name)
+        if engine is None:
+            skip(name, "engine library absent")
+            continue
+        served = payload("de_page1")
+
+        def fetch(box, pw, args, pool, url, body, label):
+            if "region=FR" in url:
+                return 200, {"code": 500, "data": []}, \
+                    product_parser.STATE_ERROR, False
+            return 200, served, product_parser.STATE_CONTENT, False
+
+        def body(FakeSession):
+            args = _fault_args(engine, region="DE,FR", pages=1, query="nike")
+            box = {"session": FakeSession(), "prime_url": "u"}
+            return engine._run_ads(box, None, args, None)
+
+        rows, meta = _with_stubs(engine, fetch, body)
+        equal("%s: FR failed, so it is not 'without ads'" % name,
+              meta.get("regions_without_ads"), None)
+        equal("%s: ...and the run says a page failed" % name,
+              meta.get("stop_reason"), "page_failed")
+        equal("%s: the sidecar records the question" % name,
+              (meta.get("query"), meta.get("query_type")), ("nike", "1"))
+
+
+def check_diff_refuses_runs_that_asked_different_questions():
+    """Two complete runs over different keywords or regions are different
+    samples; diffing them reports the sampling as ads starting/stopping."""
+    import diff_runs
+    with tempfile.TemporaryDirectory() as tmp:
+        def run(name, **meta):
+            path = os.path.join(tmp, name + ".json")
+            json.dump([], open(path, "w"))
+            base = {"status": "complete", "mode": "ads", "pages_completed": 1,
+                    "pages_requested": 1, "stop_reason": "completed"}
+            base.update(meta)
+            json.dump(base, open(path[:-5] + ".meta.json", "w"))
+            return path
+        a = run("a", query="nike", regions_requested=["DE"])
+        b = run("b", query="adidas", regions_requested=["DE"])
+        c = run("c", query="nike", regions_requested=["DE"])
+        d = run("d", query="nike", regions_requested=["DE", "FR"])
+        ns = types.SimpleNamespace
+        check("a different keyword is refused",
+              diff_runs._check_comparable(ns(old=a, new=b, force=False)) is False)
+        check("a different region set is refused",
+              diff_runs._check_comparable(ns(old=a, new=d, force=False)) is False)
+        check("the same question is compared",
+              diff_runs._check_comparable(ns(old=a, new=c, force=False)) is True)
+
+
+def check_a_recovered_page_is_not_blocked_and_a_transport_switch_refetches():
+    """Audit 2026-09-29 #4, both halves reproduced before the fix.
+
+    * `blocked` was set by ANY refusal met on the way and never cleared, so
+      a retry that got the page still reported it blocked: measured live,
+      pyppeteer @nasa — one empty HTTP 200, then the profile, then exit 6
+      with stop_reason blocked and pages_failed [].
+    * the HTTP -> browser switch spent a `--retries` attempt, so with
+      `--retries 0` a browser started and was never asked for the page.
+    """
+    blocked_state = next(
+        s for s in page_flow.STATE_POLICY
+        if page_flow.counts_as_blocked(s) and page_flow.should_retry(s))
+    content = product_parser.STATE_CONTENT
+    for name in ENGINES:
+        engine = _import_engine(name)
+        if engine is None:
+            skip(name, "engine library absent")
+            continue
+
+        class FakeHttp(engine.HttpSession):
+            def __init__(self):
+                self.proxy_url = None
+
+            def close(self):
+                pass
+
+        class FakeBrowser:
+            proxy_url = None
+
+            def close(self):
+                pass
+
+        def run(sequence, **overrides):
+            answers = list(sequence)
+            calls = []
+
+            def fake_call(session, args, url, *rest):
+                calls.append(type(session).__name__)
+                return 200, "<html></html>", answers.pop(0)
+
+            saved = (engine._call, engine._open_session, engine._prime_session)
+            engine._call = fake_call
+            engine._open_session = lambda pw, args, pool: FakeBrowser()
+            engine._prime_session = lambda session, args, url: 200
+            try:
+                args = _fault_args(engine, **overrides)
+                box = {"session": FakeHttp() if args.transport == "auto"
+                       else FakeBrowser(), "prime_url": "u"}
+                extra = ({},) if "body" in inspect.signature(
+                    engine._fetch_with_policy).parameters else ()
+                out = engine._fetch_with_policy(box, None, args, None, "u",
+                                                *extra, "label")
+            finally:
+                (engine._call, engine._open_session,
+                 engine._prime_session) = saved
+            return out, calls
+
+        (_, _, state, blocked), _ = run([blocked_state, content], retries=1)
+        equal("%s: a refusal then the page ends as content" % name,
+              state, content)
+        equal("%s: ...and is not reported blocked" % name, blocked, False)
+        (_, _, state, blocked), _ = run([blocked_state], retries=0)
+        equal("%s: a page that ENDS refused is still blocked" % name,
+              blocked, True)
+        (_, _, state, blocked), calls = run([blocked_state, content],
+                                            retries=0, transport="auto")
+        equal("%s: with --retries 0 the switch still asks the browser"
+              % name, calls, ["FakeHttp", "FakeBrowser"])
+        equal("%s: ...and gets the page" % name, (state, blocked),
+              (content, False))
+
+
 CHECKS = [v for k, v in sorted(globals().items()) if k.startswith("check_")
           and callable(v) and k != "check"]
 

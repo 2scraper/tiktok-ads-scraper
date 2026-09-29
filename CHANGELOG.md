@@ -6,10 +6,41 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and SemVer as closely as a CLI toolkit can. A patch means **fixes**; where
 a default changes in one, the note leads with it.
 
-## [Unreleased]
+## [0.1.2] — 2026-09-29
+
+> **Behaviour changes.** `--query` now filters: it was sent without the
+> search type the library needs and was ignored, so every keyword run
+> returned the whole region. A keyword that matches nothing is exit 4 (the
+> library's own `total: 0`), not exit 5. `diff_runs.py` refuses two runs
+> that asked a different keyword, region set, ad type or window.
 
 ### Fixed
 
+- **A recovered page is not a blocked one.** `_fetch_with_policy` kept a
+  "refusal seen" flag that a later successful attempt never cleared, so a
+  retry that got the page still reported it blocked. Measured live on
+  2026-09-29 (pyppeteer, @nasa): one empty HTTP 200, then the profile,
+  then `partial` / `stop_reason: blocked` with `pages_failed: []`. And the
+  HTTP -> browser switch spent a `--retries` attempt, so with `--retries 0`
+  a browser started and was never asked for the page. Both fixed in all
+  three engines, with a check that drives the real function.
+- **`--query` was ignored.** `search_body()` sent `query_type: ""`; the
+  library's UI sends `"1"`, and only then does the keyword filter.
+  Measured 2026-09-29, DE, same window: 19,000,309 / 19,000,308 (keyword /
+  nonsense) before, 416 / 0 after, in all three engines. The canary now
+  runs a positive and a negative keyword control.
+- **"Nothing matched" read as an API error.** The library's answer is
+  `{"code": 0, "total": 0, "has_more": false}` with no `data` key, and the
+  classifier called that an error, so the fixed keyword search would have
+  made every empty result exit 5. It is exit 4.
+- **The envelope is judged before any row.** A non-zero `code` is the API
+  refusing even when `data` is `[]` (it read as "no ads"); `data` that is
+  not a list is a parse error; records none of which carries an `id`
+  raise instead of reading as an empty region.
+- **A failed region was listed as having no ads.** `failed` holds region
+  numbers and was compared against a region name.
+- **`diff_runs.py` compares only runs that asked the same question.** The
+  sidecar now records `query`, `query_type`, `ad_type` and `window_days`.
 > **`diff_runs.py` compared almost nothing.** Its `TRACKED_FIELDS` were
 > tiktok-profile-scraper's account columns, 26 of which `Advertisement`
 > does not have, so a diff of two runs reported "0 changed" whenever only

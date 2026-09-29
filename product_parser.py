@@ -134,7 +134,14 @@ def search_body(query: str = "", cursor: str = "",
     """
     return {
         "query": query or "",
-        "query_type": "",
+        # "1" is what the library's own UI sends with a keyword, and it is
+        # what makes the keyword filter anything. Measured 2026-09-29, DE,
+        # same window: `nike` with an empty query_type answered total
+        # 19,000,309 (the whole region), a nonsense word 19,000,308 — the
+        # query was ignored. With "1": `nike` 416, the nonsense word 0.
+        # No query sends "" exactly as before, which is the measured
+        # region-wide listing.
+        "query_type": "1" if query else "",
         "adv_biz_ids": "",
         "order": order,
         "offset": 0,
@@ -324,6 +331,13 @@ def parse_search(payload: Any, region: str, scraped_at: str, page: int,
 
             page=page, position=position,
         ))
+    if ads and not rows:
+        # The site sent records and none carried an id this parser can
+        # read. Reported as "no ads", that sends a reader to check the
+        # query instead of the parser (CLAUDE.md §20).
+        raise PayloadError(
+            f"search response carried {len(ads)} record(s) and none had an "
+            f"`id` — the record shape has changed")
     diag["count"] = len(rows)
     return rows, diag
 
@@ -364,6 +378,41 @@ def _coerce_status(status: Any) -> Optional[int]:
         return None
 
 
+def judge_envelope(payload: Dict[str, Any]) -> str:
+    """What a search response's own envelope says, before any row is read.
+
+    The endpoint answers every question with HTTP 200, so the envelope is
+    the only place a failure is stated. Three shapes, each measured or
+    reproduced:
+
+      * `{"code": 0, "data": [...]}`                    ads
+      * `{"code": 0, "total": 0, "has_more": false}`    no ads — NO `data`
+        key at all. Measured 2026-09-29 on a keyword that matched nothing;
+        read as an error it made every empty search exit 5.
+      * `{"code": <non-zero>, ...}`                     the API refusing,
+        whatever `data` holds. Read by `data` alone, `{"code": 500,
+        "data": []}` was "no ads" — a failure reported as an empty region.
+
+    And `data` that is not a list is the schema changing, not an empty
+    answer: a parse error, so a reader checks the parser, not the query.
+    """
+    code = payload.get("code")
+    if code not in (None, 0, "0"):
+        return STATE_ERROR
+    if "data" in payload:
+        ads = payload.get("data")
+        if ads is None or ads == []:
+            return STATE_NO_ADS
+        if not isinstance(ads, list):
+            return STATE_PARSE_ERROR
+        return STATE_CONTENT
+    if code is not None and payload.get("total") == 0:
+        return STATE_NO_ADS
+    # JSON the endpoint sent that is not a search result — an error
+    # envelope, most likely. Named rather than guessed at.
+    return STATE_ERROR
+
+
 def detect_page_state(html: Any, status: Optional[int] = None,
                       url: str = "") -> str:
     """Name what the library answered with.
@@ -395,9 +444,9 @@ def detect_page_state(html: Any, status: Optional[int] = None,
             return STATE_TOKEN_REJECTED
         if status is not None and status >= 400:
             return STATE_ERROR
-        if isinstance(html, dict) and "data" in html:
-            return STATE_CONTENT if html.get("data") else STATE_NO_ADS
-        return STATE_ERROR if isinstance(html, dict) else STATE_UNKNOWN
+        if isinstance(html, dict):
+            return judge_envelope(html)
+        return STATE_UNKNOWN
 
     if is_empty_success(status, html):
         return STATE_EMPTY_SUCCESS
@@ -421,11 +470,7 @@ def detect_page_state(html: Any, status: Optional[int] = None,
     except ValueError:
         data = None
     if isinstance(data, dict):
-        if "data" in data:
-            return STATE_CONTENT if data.get("data") else STATE_NO_ADS
-        # JSON the endpoint sent that is not a search result — an error
-        # envelope, most likely. Named rather than guessed at.
-        return STATE_ERROR
+        return judge_envelope(data)
     return STATE_UNKNOWN
 
 
