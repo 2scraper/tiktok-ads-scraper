@@ -123,8 +123,21 @@ in words. A run that fetched every page it asked for is **complete**; it is
 not exhaustive, and the two are different sentences.
 
 The sidecar also records `why_each_region_stopped` — `cursor_exhausted`,
-`cursor_stalled`, `has_more_false` or `no_ads` — so "we stopped" is never
-just a number.
+`cursor_stalled`, `has_more_false`, `short_page` or `no_ads` — so "we
+stopped" is never just a number.
+
+**A short page under a large total is an incomplete run, not the end.**
+The library serves twelve ads per page: 45 of the 47 cursor pages in the
+daily canary's artifacts from 2026-10-09 to 2026-10-15 carried exactly
+twelve. Both exceptions came from one run on 2026-10-13. France's first page
+carried two ads, with `has_more: false` beside `total: 17,071,905`, and
+Germany's second page carried eleven. The library documents no cap that
+would explain that, so a page with fewer than twelve ads, while the
+response's own total says more remain, is a listing cut short. The run
+keeps the ads it got, records each such page under `short_pages`, ends
+with `stop_reason: short_page` and status `partial`, and exits **6**. A
+short last page that brings the count up to the total is the real end of
+the listing, and the run is complete.
 
 ---
 
@@ -185,7 +198,7 @@ return a body that is not JSON at all, while DE, FR and GB return ads.
 | 3 | blocked |
 | 4 | zero ads — including "the query matched nothing", which is a real answer (the library says `total: 0`) |
 | 5 | the content was never obtained — including a response that states ads exist (`total` above zero or `has_more` true) and carries none |
-| 6 | partial |
+| 6 | partial — including a region whose listing was cut short (fewer than twelve ads on a page while the stated total says more remain) |
 
 **A run that finds nothing writes nothing.** `--allow-empty` is the opt-out.
 

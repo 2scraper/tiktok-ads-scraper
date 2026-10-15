@@ -44,6 +44,7 @@ with a placeholder, and the checks test real values.
 
 import argparse
 import ast
+import copy
 import csv
 import hashlib
 import inspect
@@ -2755,6 +2756,128 @@ def check_an_envelope_that_states_ads_but_carries_none_is_not_no_ads():
                     start_url="u", final_url="u")
             equal("%s (%s): a one-region run exits 5, not 4" % (name, via),
                   rc, output_writer.EXIT_FETCH_FAILED)
+
+
+def _short_envelope(name, keep, total, has_more):
+    """A real captured page cut to its first `keep` records, under the
+    envelope values a short page was served with. The 2026-10-13 short
+    page itself was not kept (payload dumps were not on yet), so its
+    measured `total` and `has_more` are put on real records."""
+    page = copy.deepcopy(payload(name))
+    page["data"] = page["data"][:keep]
+    page["total"] = total
+    page["has_more"] = has_more
+    return page
+
+
+def check_a_short_page_under_a_large_total_is_an_incomplete_run():
+    """Twelve per page is the endpoint's own page size. A page with fewer,
+    while the response's `total` says more remain, is a listing cut short:
+    the run keeps its rows, ends `short_page` and exits 6 — before the
+    fix it was `has_more_false`, status complete, exit 0 (measured
+    2026-10-13: France, 2 ads under a total of 17,071,905)."""
+    short = product_parser.page_is_short
+    check("2 served of 12 under a total of 17M is short",
+          short(2, 0, 17071905))
+    check("11 served on page 2 under a large total is short",
+          short(11, 12, 22310415))
+    check("a full page is never short", not short(12, 0, 17071905))
+    check("a short last page that reaches the total is the real end",
+          not short(5, 12, 17))
+    check("a page that reaches a small total on page 1 is the real end",
+          not short(5, 0, 5))
+    check("no total, no evidence: not flagged", not short(2, 0, None))
+    check("zero served is the empty-page rule's business, not this one",
+          not short(0, 0, 5000))
+    equal("parse_search reports the records served",
+          diag("de_page1").get("served"), 12)
+
+    cut = _short_envelope("de_page1", 2, 17071905, False)
+    end1 = _short_envelope("de_page1", 12, 17, True)
+    end2 = _short_envelope("de_page2", 5, 17, False)
+    content = product_parser.STATE_CONTENT
+    cases = (
+        # name, pages, responses, (stop_reason, why, short pages, exit)
+        ("a short first page", 2, [cut],
+         ("short_page", "short_page", 1, output_writer.EXIT_PARTIAL)),
+        ("a full page then a short one", 2,
+         [payload("de_page1"), _short_envelope("de_page2", 11, 22310415,
+                                               False)],
+         ("short_page", "short_page", 1, output_writer.EXIT_PARTIAL)),
+        ("a short last page that reaches the total", 2, [end1, end2],
+         ("completed", "has_more_false", 0, 0)),
+        ("two full pages", 2, [payload("de_page1"), payload("de_page2")],
+         ("completed", None, 0, 0)),
+    )
+    for name in ENGINES:
+        engine = _import_engine(name)
+        if engine is None:
+            skip(name, "engine library absent")
+            continue
+        for label, pages, answers, want in cases:
+            queue_ = list(answers)
+
+            def fetch(box, pw, args, pool, url, body, lbl, queue_=queue_):
+                return 200, queue_.pop(0), content, False
+
+            def body(FakeSession, pages=pages):
+                args = _fault_args(engine, region="DE", pages=pages)
+                box = {"session": FakeSession(), "prime_url": "u"}
+                return engine._run_ads(box, None, args, None)
+
+            rows_, meta = _with_stubs(engine, fetch, body)
+            with tempfile.TemporaryDirectory() as tmp:
+                rc = output_writer.finish_run(
+                    rows_, os.path.join(tmp, "out"), "json", False,
+                    blocked=bool(meta.get("blocked")),
+                    stop_reason=meta.get("stop_reason"),
+                    pages_requested=pages,
+                    pages_completed=int(meta.get("pages_completed") or 0),
+                    pages_failed=meta.get("pages_failed") or None,
+                    start_url="u", final_url="u", extra=meta)
+                with open(os.path.join(tmp, "out.meta.json")) as handle:
+                    status = json.load(handle).get("status")
+            got = (meta.get("stop_reason"),
+                   (meta.get("why_each_region_stopped") or {}).get("DE"),
+                   len(meta.get("short_pages") or []), rc)
+            equal("%s: %s -> stop reason, why, short pages, exit"
+                  % (name, label), got, want)
+            equal("%s: %s -> status" % (name, label), status,
+                  "partial" if want[3] else "complete")
+            if label == "a short first page":
+                equal("%s: the short page's ads are kept" % name,
+                      len(rows_), 2)
+                equal("%s: the short page is recorded as measured" % name,
+                      meta["short_pages"][0],
+                      {"region": "DE", "page": 1, "served": 2,
+                       "total": 17071905, "has_more": False})
+
+
+# A real record from the 2026-10-15 canary (FR page 1): the library served
+# it with no video and no image at all.
+NO_CREATIVE_AD = {
+    "id": "1879148314137938", "name": "", "audit_status": "2", "type": "2",
+    "first_shown_date": 1792099223000, "last_shown_date": 1792099223000,
+    "videos": [], "estimated_audience": "0-1K", "spent": "",
+    "impression": 0, "show_mode": 1, "image_urls": [],
+    "rejection_info": None, "sor_audit_status": "2", "title": "Ver Más"}
+
+
+def check_a_record_without_creatives_has_a_null_creative_type():
+    """`creative_type` comes from the creatives a record carries. A record
+    with none is null — not "video", not a parse error — and the canary
+    tests the column against the dumped record rather than requiring it."""
+    page = copy.deepcopy(payload("de_page1"))
+    page["data"] = [NO_CREATIVE_AD, page["data"][0]]
+    parsed, _ = product_parser.parse_search(page, "FR", SCRAPED_AT, 1,
+                                            Advertisement)
+    equal("a record with no creative parses", len(parsed), 2)
+    equal("...with creative_type null", parsed[0].creative_type, None)
+    equal("...and its other fields intact",
+          (parsed[0].ad_id, parsed[0].title, parsed[0].first_shown_at[:4]),
+          ("1879148314137938", "Ver Más", "2026"))
+    check("a record WITH a creative still has a type",
+          parsed[1].creative_type is not None)
 
 
 def check_output_files_honour_the_umask_and_keep_an_existing_mode():
