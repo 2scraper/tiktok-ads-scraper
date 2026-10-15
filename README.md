@@ -35,7 +35,8 @@ library's own JavaScript. There is no global to read it from, and a plain
 it in its own HTTP client.
 
 **That makes a browser a prerequisite here, not a fallback** — the reverse
-of this repo's two siblings, whose pages are server-rendered. The engine
+of tiktok-profile-scraper and tiktok-video-scraper, whose pages are
+server-rendered. The engine
 opens the library, lets it search once, keeps the header it sent, and every
 request after that is a cheap POST. `--transport http` is refused up front
 with that reason rather than failing later on a 421 nobody can interpret.
@@ -129,7 +130,7 @@ just a number.
 
 ## What you get
 
-25 columns per ad. The ones worth naming:
+26 columns per ad. The ones worth naming:
 
 | column | note |
 |---|---|
@@ -143,6 +144,13 @@ just a number.
 | `estimated_audience` | TikTok's bucket, e.g. `"0-1K"` — a **string**, because it is a range and turning it into a number would be a guess |
 | `rejection_info` | TikTok's own policy reason on a rejected ad. 2 of 216 measured, and stored in a canonical (sorted-key) form so two byte-equal responses cannot diff against each other |
 | `audit_status`, `sor_audit_status`, `show_mode`, `ad_type` | TikTok's own values, passed through unmapped |
+
+**CSV cells that a spreadsheet would run as a formula are escaped.** A
+text cell beginning with `=`, `+`, `-`, `@`, a tab or a line break gets a
+leading `'` in the CSV only; numbers and the JSON output are unchanged, and
+the sidecar's `csv_cells_escaped` says how many cells were touched. Output
+files are written atomically and follow your umask; an existing file keeps
+its mode.
 
 **`impression` and `spent` are not columns.** TikTok publishes both fields
 on every ad and both were empty on **all 216 measured** across six regions
@@ -176,7 +184,7 @@ return a body that is not JSON at all, while DE, FR and GB return ads.
 | 2 | bad usage |
 | 3 | blocked |
 | 4 | zero ads — including "the query matched nothing", which is a real answer (the library says `total: 0`) |
-| 5 | the content was never obtained |
+| 5 | the content was never obtained — including a response that states ads exist (`total` above zero or `has_more` true) and carries none |
 | 6 | partial |
 
 **A run that finds nothing writes nothing.** `--allow-empty` is the opt-out.

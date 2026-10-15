@@ -26,8 +26,8 @@ failing later with a 421 nobody can interpret.
 That makes this repo the odd one of the three: tiktok-profile-scraper and
 tiktok-video-scraper both default to plain HTTPS because their pages are
 server-rendered, and both treat the browser as a fallback. Here the
-browser is a prerequisite, and saying so is the point (CLAUDE.md §21:
-gating is per-ROUTE, and the remedy differs with it).
+browser is a prerequisite, and saying so is the point (gating is
+per-ROUTE, and the remedy differs with it).
 
 `offset` is a decoy
 ===================
@@ -39,8 +39,8 @@ response hands back:
     {"last_sort": [1790109992000], "next_cursor": 12}
 
 A run that trusted `offset` would re-collect page one for as long as it
-was asked to and report a complete run of duplicates — CLAUDE.md §23's
-trap, met for the third time in this family and with the loudest decoy
+was asked to and report a complete run of duplicates — a
+trap met for the third time in this family and with the loudest decoy
 yet, because here the useless parameter is one the site's own UI sends.
 
 `limit` is a decoy too: 12, 50 and 100 all return twelve.
@@ -75,7 +75,7 @@ TOKEN_HEADER = "x-ccl-str"
 # The library's own region list, fetched from `/api/v1/support-regions` on
 # 2026-09-22 and kept as a FALLBACK only — the engines ask the site rather
 # than trusting this, because a hardcoded list of a living thing rots
-# (CLAUDE.md §13). It is here so that `--help` can name them and so a
+#. It is here so that `--help` can name them and so a
 # typo is refused before a request is spent.
 KNOWN_REGIONS = (
     "AT", "BE", "BG", "CH", "CY", "CZ", "DE", "DK", "EE", "ES", "FI", "FR",
@@ -91,7 +91,7 @@ ADS_PER_PAGE = 12
 class NotAnAdsQuery(ValueError):
     """The input is not something this repo can ask the library for.
 
-    Refused WITH THE REASON (CLAUDE.md §5).
+    Refused WITH THE REASON.
     """
 
 
@@ -158,7 +158,7 @@ def search_body(query: str = "", cursor: str = "",
 def decode_cursor(cursor: Optional[str]) -> Optional[Dict[str, Any]]:
     """The base64 cursor, readable — for logs and for the end-of-listing test.
 
-    CLAUDE.md §23 and §24: on three sites now, the response has stated
+    On three sites now, the response has stated
     which page it actually served, and reading that is the only
     unambiguous end-of-listing signal. Here the cursor says
     `{"last_sort": [...], "next_cursor": N}` and `next_cursor` is the
@@ -296,7 +296,7 @@ def parse_search(payload: Any, region: str, scraped_at: str, page: int,
             # True) and got different rows: the fixture had been written
             # with sorted keys and the capture had not.
             #
-            # Same shape as CLAUDE.md §24's float32 round-trip making two
+            # Same shape as a sibling's float32 round-trip making two
             # modes disagree on every row — a serialisation detail leaking
             # into a value.
             rejection = json.dumps(rejection, ensure_ascii=False,
@@ -334,7 +334,7 @@ def parse_search(payload: Any, region: str, scraped_at: str, page: int,
     if ads and not rows:
         # The site sent records and none carried an id this parser can
         # read. Reported as "no ads", that sends a reader to check the
-        # query instead of the parser (CLAUDE.md §20).
+        # query instead of the parser.
         raise PayloadError(
             f"search response carried {len(ads)} record(s) and none had an "
             f"`id` — the record shape has changed")
@@ -378,6 +378,20 @@ def _coerce_status(status: Any) -> Optional[int]:
         return None
 
 
+def envelope_states_rows(payload: Any) -> bool:
+    """True when a search envelope itself says there are ads to serve."""
+    if isinstance(payload, (bytes, bytearray, str)):
+        try:
+            payload = json.loads(decode_page(payload))
+        except ValueError:
+            return False
+    if not isinstance(payload, dict):
+        return False
+    total = _int(payload.get("total"))
+    return bool((total is not None and total > 0)
+                or payload.get("has_more") is True)
+
+
 def judge_envelope(payload: Dict[str, Any]) -> str:
     """What a search response's own envelope says, before any row is read.
 
@@ -402,6 +416,13 @@ def judge_envelope(payload: Dict[str, Any]) -> str:
     if "data" in payload:
         ads = payload.get("data")
         if ads is None or ads == []:
+            # An empty list beside the response's own statement that ads
+            # exist — `total` above zero or `has_more` true — is not "the
+            # query matched nothing": the run would exit 4 while the same
+            # response says thousands matched. Named a parse error so the
+            # run reports that the content was not obtained.
+            if envelope_states_rows(payload):
+                return STATE_PARSE_ERROR
             return STATE_NO_ADS
         if not isinstance(ads, list):
             return STATE_PARSE_ERROR
@@ -420,22 +441,18 @@ def detect_page_state(html: Any, status: Optional[int] = None,
     Accepts a parsed object as well as bytes or text, because the engines'
     `post_json` hands back whatever the transport already decoded. An
     earlier version assumed bytes and died with a `KeyError` on a dict —
-    on the first live run, which is where CLAUDE.md §15 says these are
-    found.
+    on the first live run, which is where these are found.
 
     The argument ORDER is the contract: every caller writes
-    `detect_page_state(body, status, url)` — CLAUDE.md §17, and
+    `detect_page_state(body, status, url)`, and
     `smoke_test.py` binds every call site against this signature.
 
     Signals are ordered by how much they PROVE, not by how cheap they are
-    (§17's classification-order trap).
+    (a cheap signal checked first can misclassify a page that a stronger
+    one would have named correctly).
     """
-    # A status can arrive as a STRING. The 2Captcha Scraper API returns the
-    # upstream status as "200", and the first live run of that path crashed
-    # right here with `'>=' not supported between 'str' and 'int'` — exit 1
-    # on the one engine that costs money, invisible to every offline check
-    # because none of them feeds a status the way that service does.
-    # CLAUDE.md §16: run every path a credential gates.
+    # A status can arrive as a STRING (some transports report "200"), and
+    # comparing it with an int would crash here, so it is coerced first.
     status = _coerce_status(status)
     # A parsed object from `post_json`: judged directly, because turning
     # it back into text to re-parse it would be the same guess twice.
@@ -482,7 +499,7 @@ def page_url(url: str, page: int) -> str:
     Pages come from the `search_id` cursor the previous response handed
     back, so page 5's request is unknowable until page 4 has been read —
     which is why `--concurrency` above 1 is refused with that reason
-    rather than silently ignored (CLAUDE.md §7).
+    rather than silently ignored.
     """
     if page == 1:
         return url

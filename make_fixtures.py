@@ -11,13 +11,13 @@ test neither — but nothing else is.
 
 There is no session material to scrub here: the endpoint sets no cookies
 at all (measured: zero), and the one header that gates it lives in the
-REQUEST, never in the response. That is a happier version of CLAUDE.md
-§10 than the sibling repos have: the thing worth not committing is not in
+REQUEST, never in the response. That is a happier position on fixture
+scrubbing than the sibling repos have: the thing worth not committing is not in
 the thing being committed.
 
 Advertiser names ARE real and stay real. An advertiser in a statutory
 transparency library is a company that has published its advertising by
-law, not a private individual — which is the distinction §10 draws, and
+law, not a private individual — which is the distinction that matters, and
 the reason nothing here is replaced with a placeholder.
 """
 

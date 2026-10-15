@@ -15,7 +15,7 @@ WHAT THIS MODULE IS FOR ON TIKTOK
 On the profile, embed, video and Ad Library routes, from a bare datacentre
 address with no key and no proxy, TikTok rendered no captcha at all
 (measured 2026-09-22). But "no challenge rendered" is NOT "no captcha
-configured" (CLAUDE.md §18), and the obvious grep lies here the same way it
+configured", and the obvious grep lies here the same way it
 lies on other sites in this family: a SERVED profile page carries the word
 `captcha` 25 times. Every one is configuration for TikTok's own SDK, not a
 widget — which is why the bare word is not a challenge marker.
@@ -835,8 +835,7 @@ def solve_recaptcha(challenge: CaptchaChallenge, twocaptcha_api_key: Optional[st
                      api_version: str = "v2", min_score: float = 0.7) -> str:
     """Public entry point: solve `challenge` through 2captcha and return the token.
 
-    There used to be a `use_antidetect` branch here, behind a CLI flag of the
-    same name, that POSTed to a hardcoded local "solve-captcha" endpoint.
+    There used to be a second branch here, behind a CLI flag, that POSTed to a hardcoded local "solve-captcha" endpoint.
     It was removed before publishing: that endpoint was a placeholder for a
     product that does not exist under that name, so the flag could not work for
     anyone who set it, and the real "the browser solves it for you" path is

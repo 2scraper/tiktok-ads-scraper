@@ -9,14 +9,14 @@ TWO different front-end applications that spell their state differently:
     /@user/video/{id}      __UNIVERSAL_DATA_FOR_REHYDRATION__   same app
     /embed/@user           __FRONTITY_CONNECT_STATE__           the embed app
 
-CLAUDE.md §23 names this shape on another site: two structured sources
+Another site in this family has the same shape: two structured sources
 belonging to two different applications. Keeping both readers in one
 module is what stops a repo growing two half-parsers that disagree about
 what "the payload" means.
 
 This file is COPIED BYTE-IDENTICAL into every tiktok-* repo, and each
-repo's smoke suite pins its SHA-256 against a recorded digest. CLAUDE.md
-§16's rule is that copied core is untested core; the digest turns a silent
+repo's smoke suite pins its SHA-256 against a recorded digest. Copied
+core is untested core; the digest turns a silent
 divergence into a red test. When this file legitimately changes, the
 digest changes in the same commit, in every repo, or those repos go red —
 which is the point.
@@ -39,7 +39,7 @@ it is not a floor, a ceiling, or anything a consumer can correct for.
 `statsV2` carries the exact figure, as a STRING. Every reader below
 prefers statsV2 and falls back to stats only when statsV2 is absent,
 recording which one it used — because a number whose provenance is
-unrecorded is a guess presented as a fact (CLAUDE.md §8).
+unrecorded is a guess presented as a fact.
 """
 
 from __future__ import annotations
@@ -57,8 +57,7 @@ logger = logging.getLogger("tiktok_payload")
 #
 # Anchored on the script TAG's id, which is a contract with the page's own
 # hydration code, rather than on a CSS class or a surrounding structure.
-# Same reasoning as CLAUDE.md §4's "anchor on a URL pattern, never a CSS
-# class": the id is what the application itself looks up.
+# Same reasoning as "anchor on a URL pattern, never a CSS class": the id is what the application itself looks up.
 _REHYDRATION_RE = re.compile(
     r'<script\s+id="__UNIVERSAL_DATA_FOR_REHYDRATION__"[^>]*>(.*?)</script>',
     re.S,
@@ -75,14 +74,14 @@ class PayloadError(ValueError):
     Distinct from "the payload said no such user", which is a fact about
     the account and is reported through `user_status()` instead. Confusing
     the two is how a scraper reports a parsing bug as an empty result, or
-    an empty result as a parsing bug (CLAUDE.md §20).
+    an empty result as a parsing bug.
     """
 
 
 def decode_page(raw: Any, content_type: Optional[str] = None) -> str:
     """Bytes (or str) to text, honouring a declared charset.
 
-    CLAUDE.md §24: one site in this family serves its detail pages as
+    One site in this family serves its detail pages as
     EUC-JP and its listing pages as UTF-8, and a blind
     `bytes.decode("utf-8", "replace")` turned every title into replacement
     characters while the numbers still parsed — a run that reports success
@@ -171,7 +170,7 @@ def _to_int(value: Any) -> Optional[int]:
     """A count to int, or None — never a defaulted zero.
 
     Zero is a real value on TikTok (an account with no likes), so this
-    cannot collapse "absent" onto it. CLAUDE.md §21: zero is not a rating,
+    cannot collapse "absent" onto it. Zero is not a rating,
     and any numeric field whose absent state is 0 rather than null needs
     the absence recovered from somewhere else.
     """
@@ -198,7 +197,7 @@ def counts(container: Dict[str, Any], keys: Tuple[str, ...]) -> Tuple[Dict[str, 
     The source string goes into a `stats_source` column. Two runs that
     differ only in which object the site happened to publish must be
     distinguishable from two runs where a count really moved — that is the
-    same argument CLAUDE.md §8 makes for `price_source`, and
+    same argument other repos make for `price_source`, and
     `diff_runs.py` uses it the same way.
     """
     v2 = container.get("statsV2")
@@ -262,7 +261,7 @@ def user_status(user_detail: Optional[Dict[str, Any]]) -> Tuple[str, Optional[in
 # Refusal detection
 # ---------------------------------------------------------------------------
 #
-# CLAUDE.md §18: count every candidate marker on a page you KNOW is good
+# Count every candidate marker on a page you KNOW is good
 # before adding it. Counted 2026-09-22 across the captures in this repo:
 #
 #     marker              on a served profile   on a shop Security Check
@@ -274,7 +273,7 @@ def user_status(user_detail: Optional[Dict[str, Any]]) -> Tuple[str, Optional[in
 #     "captcha_verify_img_slide"          0                   1
 #
 # So the bare word `captcha` is a fact about every TikTok page and is
-# USELESS as a marker — the exact trap §18 records from another site,
+# USELESS as a marker — the exact trap recorded on another site,
 # where `akamai` matched every page the site served. The markers below are
 # the ones that scored zero on every served capture.
 #
@@ -304,11 +303,11 @@ def user_status(user_detail: Optional[Dict[str, Any]]) -> Tuple[str, Optional[in
 # to the challenge.
 #
 # NOT carried: the bare word `captcha`, which appears 25 times on a
-# perfectly good profile page and 29 on the challenge. CLAUDE.md §18's
-# rule, and the numbers are why: a marker that matches every page is worse
+# perfectly good profile page and 29 on the challenge. Count a marker on
+# a page you know is good first, and the numbers are why: a marker that matches every page is worse
 # than no marker.
 #
-# UNVERIFIED, and stated rather than assumed: CLAUDE.md §24 wants this set
+# UNVERIFIED, and stated rather than assumed: this set should be
 # scored against a page fetched over the 2Captcha Scraping Browser, whose
 # auto-solve extension injects captcha hunters into every page it loads.
 # That check is written in `smoke_test.py` and SKIPS here, because the CDP
@@ -344,7 +343,7 @@ BOT_CHALLENGE_MARKERS = (
 # The shop loads its captcha SDK on EVERY page, ready to fire. So the
 # loader's name is a fact about the route, not a signal about the
 # response — and a scraper carrying it reported exit 3 on a 240 KB page
-# holding the product it had asked for. That is CLAUDE.md §18's rule
+# holding the product it had asked for. That is the rule
 # ("count it on a page you know is good") failing not because it was
 # ignored but because the good page did not exist yet, which is the
 # harder version of it: a marker is only as verified as the corpus it was
@@ -370,7 +369,7 @@ BOT_CHALLENGE_MARKERS = (
 # Two things follow, and the first inverts this family's usual instinct:
 #
 #   1. A RESIDENTIAL PROXY IS WORSE THAN NO PROXY HERE. 22% against 100%.
-#      CLAUDE.md §24 records a site where the gate was the client rather
+#      Another site in this family is one where the gate was the client rather
 #      than the address; this is a site where a "better" address is the
 #      worse one, presumably because a shared residential pool has been
 #      scraped through before and a clean datacentre IP has not.
@@ -393,7 +392,7 @@ WAF_CHALLENGE_MARKERS = (
 )
 
 # NOT carried: "Please wait...". It is ordinary English that a video
-# caption or a bio can contain, and CLAUDE.md §18's rule is that a marker
+# caption or a bio can contain, and the rule is that a marker
 # a user's own text can trip will eventually refuse a good page. The four
 # above are a CSS class, an element id, a script path and a WAF product
 # name; none can arrive from user content. Counted 2026-09-22 across 25
@@ -419,7 +418,7 @@ def waf_markers_present(html) -> List[str]:
 #
 # No status to key on, no body to parse, no marker to match. A client that
 # checks `response.ok` calls this a success and reports an account with no
-# videos. CLAUDE.md §24 records a site whose refusal arrived under HTTP
+# videos. Another site in this family sent its refusal under HTTP
 # 200; this is that, with the body removed as well.
 def is_empty_success(status: Optional[int], body: Any) -> bool:
     """True for TikTok's zero-byte HTTP 200 — a refusal wearing a success.

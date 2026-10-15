@@ -352,8 +352,8 @@ def user_agent_metadata(fp: dict) -> Optional[dict]:
     `HeadlessChrome/153` in `navigator.userAgentData.brands`, which is a
     contradiction rather than cover.
 
-    CLAUDE.md §24 is explicit that a HALF identity is worse than none — a
-    bare UA override there was served on the first navigation and refused
+    A HALF identity is worse than none — measured on a sibling site, a
+    bare UA override was served on the first navigation and refused
     on the next three, while a complete one was served throughout. So this
     returns None unless the API gave enough to be complete, and the caller
     must apply it TOGETHER with the user agent, never on its own.
@@ -416,7 +416,7 @@ def main() -> int:
     # loader. It used to read `os.environ` alone, which meant a key put in
     # `.env` exactly as the README and .env.example instruct worked for every
     # engine and failed HERE with "No API key" — a documented mechanism not
-    # applied on one path, which is the shape of half the defects §16 lists.
+    # applied on one path, a common shape of defect in copied code.
     #
     # `.env` has to be LOADED before it can be read: `env_value` looks at
     # os.environ, and `load_env` is what fills that from the file. Calling it

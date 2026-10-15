@@ -93,12 +93,12 @@ HEX32 = re.compile(r"\b[0-9a-f]{32}\b")
 # sits INSIDE A URL WHOSE HOST TIKTOK OWNS. That is structural, it is
 # checkable, and the bar it sets for hiding a key is "write it inside a
 # tiktokcdn URL", which is a deliberate disguise rather than an accident —
-# the bar CLAUDE.md §24 asks for.
+# the bar an exemption should set.
 #
 # These values are needed: a fixture has to hold the library's whole proxied media URLs,
 # because `parse_search` reads them into columns and a fixture without
-# them would test neither. §24 asks whether the value is needed
-# before granting an exemption, and here the answer is yes. (The sibling
+# them would test neither. An exemption has to be justified by the value
+# being needed, and here the answer is yes. (The sibling
 # tiktok-profile-scraper also exempts its `avatar_id` column; this repo has
 # no such column, so it does not.)
 _TIKTOK_URL = re.compile(
@@ -123,7 +123,7 @@ HEX32_ALLOWED = ("sha", "hash", "nonce", "example", "md5", "digest",
 # them the scan skipped the BIGGEST files in the repository — the generated
 # fixtures and the committed sample, which are captured page payload and
 # therefore exactly where a front-end key or a session token arrives.
-# Measured 2026-09-21 on a sibling (rakuten-scraper, CLAUDE.md §24) by
+# Measured 2026-09-21 on a sibling (rakuten-scraper) by
 # planting a real-shaped 2captcha key and a `ws://user:pass@` URL into
 # `fixtures_generated.json`: the scan reported "nothing credential-shaped".
 #
@@ -131,7 +131,7 @@ HEX32_ALLOWED = ("sha", "hash", "nonce", "example", "md5", "digest",
 # contain zero 32-hex strings outside a TikTok URL and zero credentialled
 # URLs, so the strictest
 # rule covers the largest files rather than acquiring an exception that a
-# real key could later hide behind (CLAUDE.md §24).
+# real key could later hide behind.
 SCANNED_SUFFIXES = (".py", ".md", ".txt", ".yml", ".yaml", ".example",
                     ".json", ".csv")
 
@@ -139,10 +139,10 @@ SCANNED_SUFFIXES = (".py", ".md", ".txt", ".yml", ".yaml", ".example",
 # alone does NOT cover: `.env.bak` has the suffix `.bak`.
 #
 # Found by planting a real-shaped key in an untracked `.env.bak` and
-# watching this scan stay green — the exact file CLAUDE.md §22 records a
-# sibling repo catching, in the exact state (untracked, ignored, one
+# watching this scan stay green — the exact file a
+# sibling repo caught, in the exact state (untracked, ignored, one
 # `git add -A` from a commit) that made it worth catching. A control is
-# only as good as the branch it does not leave unwritten (§25).
+# only as good as the branch it does not leave unwritten.
 def _is_env_variant(path):
     return path.name == ".env" or path.name.startswith(".env.")
 
@@ -159,8 +159,7 @@ _SKIP_NAMES = {".git", "__pycache__", ".pytest_cache", ".mypy_cache",
                # produces a page of findings about the site's own data and
                # teaches everyone to ignore the check.
                #
-               # DIRECTORIES only, and deliberately so: CLAUDE.md §23 is
-               # explicit that the scan must keep reading untracked FILES,
+               # DIRECTORIES only, and deliberately so: the scan must keep reading untracked FILES,
                # because the case it exists for is an untracked `.env.bak`
                # with a live key in it. Skipping a whole output directory
                # does not weaken that; narrowing the scan to tracked files
@@ -179,7 +178,7 @@ def _is_virtualenv(path):
     walked into pip's vendored code and flagged a 32-hex string in
     `_elffile.py` as key-shaped. The run was correct about the string and
     wrong about the file, and a guard people have to argue with is one they
-    learn to suppress (CLAUDE.md §22).
+    learn to suppress.
 
     Structural rather than by name, for the same reason a parser anchors on a
     URL pattern instead of a CSS class: `venv`, `.venv`, `.v`, `env39` and
@@ -308,7 +307,7 @@ def secret_check():
             # contains the word "hash" 88 times, so one allowlisted token
             # anywhere in it exempted every match in the file. Measured by
             # planting a real-shaped key and watching the scan report
-            # "nothing credential-shaped" (CLAUDE.md §22: a control is only
+            # "nothing credential-shaped" (a control is only
             # worth what the edit it actually made is worth).
             for match in CREDENTIALLED_URL.finditer(line):
                 if _allowed_near(line, match.start(), match.end(),

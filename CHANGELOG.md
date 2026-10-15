@@ -6,6 +6,50 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and SemVer as closely as a CLI toolkit can. A patch means **fixes**; where
 a default changes in one, the note leads with it.
 
+## [Unreleased]
+
+> **Behaviour changes.** A response whose own `total` or `has_more` says
+> ads exist but whose `data` is empty is now a failure, not "no ads": a run
+> holding nothing exits **5** (was 4), and a run with other rows exits 6.
+> Output files follow the umask (were always 0600) and an existing file
+> keeps its mode. CSV cells that would run as a spreadsheet formula get a
+> leading `'`. Negative `--retries`, `--retry-delay`, `--delay` and
+> `--proxy-block-retries` are refused as usage errors (exit 2).
+
+### Fixed
+
+- **An empty `data` beside a non-zero `total` read as "no ads".** The
+  classifier returned `no_ads` for `{"total": 5000, "has_more": true,
+  "data": []}`, so a run reported the query as matching nothing (exit 4)
+  while the response stated 5,000 matches. It is now a parse error in the
+  classifier, and each engine treats a zero-row page under such an envelope
+  the same way. A genuine `total: 0` is still exit 4.
+- **Output files were 0600 whatever the umask.** The atomic writer kept
+  the temporary file's owner-only mode. A new file now gets
+  `0666 & ~umask` and an existing one keeps its own mode, including the
+  `.meta.json` sidecar.
+- **CSV formula injection.** Advertiser names, titles and creative URLs
+  are advertiser-written text. String cells starting with `=`, `+`, `-`,
+  `@`, tab, CR or LF are prefixed with `'` in the CSV (after list joining);
+  numbers and JSON are untouched. The sidecar records `csv_cells_escaped`,
+  and a caller's own sidecar fields win a name collision.
+- **Negative counts and delays.** `--retries -1` was silently read as 0
+  and `--retry-delay -1` crashed the first retry with exit 1. All three
+  engines (and the refusal-only Scraper API client) now reject negative
+  values with an argparse error naming the flag. `--retries` has help text
+  saying it counts extra attempts; `--retries 0` still fetches once.
+- **Wording.** The README said 25 columns per ad (there are 26), and
+  comments described sibling routes as if they were this repo's.
+
+### Changed
+
+- Public files no longer cite an external instruction file or its section
+  numbers; each comment states its rule directly. A suite check keeps it
+  that way. `tiktok_payload.py` changed only in comments, and its recorded
+  digest was updated.
+- The canary keeps the exact payloads it received (`--dump-html`) in its
+  artifact, so a red run can be diagnosed.
+
 ## [0.1.2] — 2026-09-29
 
 > **Behaviour changes.** `--query` now filters: it was sent without the
@@ -157,7 +201,7 @@ words.
   two different strings — so a diff would report the rejection as having
   changed. Found by `make_fixtures.py --verify`, which parsed a capture
   and its own fixture (`o == f` was True) and got different rows. Same
-  shape as CLAUDE.md §24's float32 round-trip.
+  shape as a float32 round-trip seen on a sibling repo.
 - **Timestamps are milliseconds.** Read as seconds, 1790112836000 lands in
   the year 58,700.
 - **Selenium needed `goog:loggingPrefs` at launch.** It has no
@@ -173,6 +217,6 @@ words.
 - **The 2Captcha Scraper API path.** That service fetches a URL and hands
   back what the site returned; it cannot mint a header for a request it is
   not making. Refused with that reason — a feature request, not a
-  limitation of the product (CLAUDE.md §19's wording rule).
+  limitation of the product.
 - **Any region outside the 33 the library serves.** `--region US` is
   refused as a real country the library does not cover, not as a typo.

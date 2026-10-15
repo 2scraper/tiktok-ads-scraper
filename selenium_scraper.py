@@ -29,9 +29,9 @@ let it search once, and keep the header it sent. Everything after that is
 a cheap POST. `--transport http` is refused with that reason rather than
 failing later on a 421 nobody can interpret.
 
-That makes this repo the reverse of its two siblings, whose pages are
-server-rendered and who treat the browser as a fallback. CLAUDE.md §21:
-gating is per-ROUTE, and so is the remedy.
+That makes this repo the reverse of tiktok-profile-scraper and
+tiktok-video-scraper, whose pages are server-rendered and who treat the browser as a fallback. Gating is
+per-ROUTE, and so is the remedy.
 
 `offset` is a decoy
 ===================
@@ -57,7 +57,7 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
 # Imported at MODULE level on purpose — see the note in
-# puppeteer_scraper.py and CLAUDE.md §10. smoke_test.py asserts it.
+# puppeteer_scraper.py. smoke_test.py asserts it.
 from selenium import webdriver
 from selenium.common.exceptions import (WebDriverException,
                                         TimeoutException as SETimeout)
@@ -68,7 +68,7 @@ from captcha_solver import (detect_recaptcha_v3, detect_recaptcha_in_page,
                             reconcile_detections, solve_recaptcha,
                             CaptchaUnsolvable, INJECT_TOKEN_JS,
                             RECAPTCHA_DISCOVERY_JS)
-from output_writer import (COMPLETE_STOP_REASONS, Advertisement as Video,
+from output_writer import (COMPLETE_STOP_REASONS, Advertisement,
                            dedupe_by_key, finish_run,
                            utc_now, EXIT_API_ERROR, EXIT_NO_PRODUCTS,
                            SOURCE_DEFAULT)
@@ -102,7 +102,7 @@ DEFAULT_MODE = "ads"
 
 ENGINE_NAME = "selenium"
 
-# Every remote call is bounded (CLAUDE.md §8).
+# Every remote call is bounded.
 REQUEST_TIMEOUT_MS = 30_000
 NAVIGATION_TIMEOUT_MS = 60_000
 
@@ -113,7 +113,7 @@ MIN_CARD_MATCHES = page_flow.MIN_CARD_MATCHES
 class PageOutcome:
     """One fetch attempt's result, in request order rather than arrival order.
 
-    CLAUDE.md §8: merging by arrival order makes the output depend on which
+    Merging by arrival order makes the output depend on which
     worker finished first. Workers return these and the caller sorts.
     """
     number: int
@@ -130,7 +130,7 @@ class PageOutcome:
 def _mask_credentials(text: Any) -> str:
     """Mask every credential in a string, not just the first.
 
-    CLAUDE.md §8: a masker that handles the first occurrence prints the
+    A masker that handles the first occurrence prints the
     password the other four times and looks like it is working — Playwright
     repeats a CDP endpoint five times in one error, once in the message and
     four more in its call log.
@@ -146,7 +146,7 @@ def _mask_credentials(text: Any) -> str:
 def _chrome_ua(chromium_version: str) -> str:
     """A user agent built from the Chromium actually installed.
 
-    CLAUDE.md §8: a hardcoded version drifts from whatever is installed,
+    A hardcoded version drifts from whatever is installed,
     and claiming an older Chrome than the JS engine and TLS handshake
     report is itself a mismatch.
     """
@@ -158,7 +158,7 @@ def _chrome_ua(chromium_version: str) -> str:
 def _proxy_failure(exc: Exception) -> str:
     """Name a dead proxy, or "" for anything else.
 
-    CLAUDE.md §8: Chromium reports a dead proxy as a generic error, not a
+    Chromium reports a dead proxy as a generic error, not a
     timeout, and the two want opposite responses — a timeout deserves
     another try at the SAME exit, a dead proxy a DIFFERENT one. Catching
     only the timeout type let this escape as a traceback in a sibling repo.
@@ -179,8 +179,7 @@ def _proxy_failure(exc: Exception) -> str:
 # browser is involved at all. A function EXPRESSION, never an evaluated
 # string: TikTok's CSP does carry `unsafe-eval` today (measured
 # 2026-09-22), but a CSP is a per-route header a site can tighten without
-# notice, and CLAUDE.md §18 records a sibling whose run died on exactly
-# that.
+# notice, and a sibling repo's run died on exactly that.
 _FETCH_JS = """
 var spec = arguments[0];
 var done = arguments[arguments.length - 1];
@@ -200,7 +199,7 @@ fetch(spec.url, init).then(function (response) {
 class _BrowserSession:
     """A driver, a page on tiktok.com, and a fetch primitive bound to it.
 
-    A rotation is a FRESH BROWSER (CLAUDE.md §8): cookies a bot manager
+    A rotation is a FRESH BROWSER: cookies a bot manager
     issued against exit A and replayed from exit B are a stronger signal
     than either address alone. So this object is torn down and rebuilt
     rather than having its proxy swapped underneath it.
@@ -281,7 +280,7 @@ class _BrowserSession:
         Wrapped in `return (…)(arg)` because `execute_script` takes a
         function BODY, where the shared captcha module hands out `() =>
         expr`. Never an evaluated string on the page's own terms: a site's
-        Content-Security-Policy has no `unsafe-eval` (CLAUDE.md §18), and
+        Content-Security-Policy has no `unsafe-eval`, and
         `execute_script` goes through the WebDriver protocol rather than
         through the page's `eval`.
         """
@@ -395,7 +394,7 @@ def _launch_local(pw, args, pool: Optional[ProxyPool]) -> _BrowserSession:
             # Said out loud rather than silently dropped. Selenium cannot
             # authenticate a proxy at all, and a user who passed a
             # `user:pass` URL must not be left believing it is doing
-            # something (CLAUDE.md §6).
+            # something.
             logger.warning("Selenium cannot authenticate a proxy: the "
                            "credentials in --proxy have been STRIPPED and "
                            "only %s is in use. If this exit needs a "
@@ -428,7 +427,7 @@ def _apply_fingerprint(driver, fingerprint, user_agent) -> None:
 
     `--user-agent=` on the command line is a BARE override: it changes
     `navigator.userAgent` and leaves `navigator.userAgentData` and the
-    `Sec-CH-UA` header reporting the real browser. CLAUDE.md §24 measured
+    `Sec-CH-UA` header reporting the real browser. A sibling site measured
     that half-identity being refused where a complete one was served, so
     this engine applies the same set its twins do.
 
@@ -449,7 +448,7 @@ def _apply_fingerprint(driver, fingerprint, user_agent) -> None:
     if not metadata:
         logger.warning("The fingerprint carried no brand list, so its client "
                        "hints are left alone: a HALF identity is worse than "
-                       "none (CLAUDE.md §24).")
+                       "none.")
         return
     payload = {"userAgent": user_agent, "userAgentMetadata": metadata}
     language = accept_language(fingerprint)
@@ -496,10 +495,10 @@ def _open_http(args, pool: Optional[ProxyPool]) -> HttpSession:
     issued from inside the page gets 421 too, because the app attaches it
     in its own HTTP client. Measured 2026-09-22.
 
-    So a browser is a PREREQUISITE here, not a fallback. Its two siblings
-    are the other way round: their pages are server-rendered and the
+    So a browser is a PREREQUISITE here, not a fallback. The profile and
+    video repos are the other way round: their pages are server-rendered and the
     browser is what `--transport auto` reaches for when the site
-    challenges. Saying which way round it is, per route, is CLAUDE.md §21.
+    challenges. Saying which way round it is, per route, is the point.
     """
     raise NotAnAdsQuery(
         "--transport http cannot work against TikTok's Ad Library: the "
@@ -596,13 +595,13 @@ def _handle_captcha_in_browser(session, args,
     """Detect and, if it is worth paying for, solve a challenge.
 
     Both call sites — before classification and after — go through the same
-    `SolveBudget`, which is the CLAUDE.md §23 fix: `SOLVES_PER_PAGE` read
+    `SolveBudget`, which is the fix: `SOLVES_PER_PAGE` read
     like an enforced limit in every repo in this family and was not one,
     because only the second of the two calls was counted. One page bought
     three solves on a site where a challenge rendered on every fetch.
 
-    A missing key or a solver error is a WARNING and the run continues
-    (CLAUDE.md §8): detection is not the same as blocking, and a run that
+    A missing key or a solver error is a WARNING and the run continues:
+    detection is not the same as blocking, and a run that
     already has data must not die because a solve failed.
     """
     if args.solve_captcha == "never":
@@ -671,7 +670,7 @@ def _handle_captcha_in_browser(session, args,
 def _dump(args, name: str, payload: Any) -> None:
     """Write the exact bytes a call returned.
 
-    On SUCCESS too, not only on failure (CLAUDE.md §9): a run can return
+    On SUCCESS too, not only on failure: a run can return
     the right count with a field silently unpopulated, and then the exact
     payload is the only way to tell a parsing bug from a too-early
     snapshot.
@@ -713,7 +712,7 @@ def _fetch_with_policy(session_box: Dict[str, Any], pw, args,
 
     `session_box` holds the live session so a rotation can replace it: a
     rotation is a fresh browser, never a proxy swapped under a live
-    session (CLAUDE.md §8).
+    session.
     """
     budget = SolveBudget()
     attempts = max(1, int(args.retries) + 1)
@@ -745,8 +744,7 @@ def _fetch_with_policy(session_box: Dict[str, Any], pw, args,
                 # responses: a timeout deserves another try at the SAME
                 # exit, a dead proxy a DIFFERENT one. Chromium reports it
                 # as a generic error rather than as a timeout, which is how
-                # this escaped as a traceback in a sibling repo
-                # (CLAUDE.md §8).
+                # this escaped as a traceback in a sibling repo.
                 logger.warning("%s failed at the EXIT, not at the site: %s "
                                "via %s. Rotating rather than retrying the "
                                "same address.", label, exit_failed,
@@ -853,9 +851,9 @@ def _rotate_if_per_page(session_box, pw, args, pool, why: str) -> bool:
     run whose pages all succeeded stayed on one address for its whole
     life. The flag read like a traffic-spreading control and was a
     recovery control — a setting that looks configurable and is not
-    (CLAUDE.md §3 says that about `.env`; it is the same defect here).
+    (the same defect as a `.env` value that silently does nothing).
 
-    A rotation is a FRESH BROWSER (CLAUDE.md §8): cookies a bot manager
+    A rotation is a FRESH BROWSER: cookies a bot manager
     issued against exit A and replayed from exit B are a stronger signal
     than either address alone, so the session is torn down and rebuilt
     rather than having its proxy swapped underneath it.
@@ -881,7 +879,7 @@ def _worker_pool(pool: Optional[ProxyPool], worker_index: int):
     Each worker gets its OWN pool object holding the same exits rotated to
     a different offset, so workers start on distinct addresses and no
     thread needs a lock — the concurrency is safe by construction rather
-    than by discipline (CLAUDE.md §7).
+    than by discipline.
     """
     if not pool:
         return None
@@ -994,7 +992,7 @@ def _run_ads(session_box, pw, args, pool) -> Tuple[List[Any], Dict[str, Any]]:
 
             try:
                 page_rows, diag = parse_search(payload, region, scraped_at,
-                                               page, Video)
+                                               page, Advertisement)
             except PayloadError as exc:
                 logger.error("%s page %d was served and did not parse: %s",
                              region, page, exc)
@@ -1004,6 +1002,17 @@ def _run_ads(session_box, pw, args, pool) -> Tuple[List[Any], Dict[str, Any]]:
 
             totals.setdefault(region, diag.get("total"))
             if not page_rows:
+                if parser.envelope_states_rows(payload):
+                    # Zero rows from a response whose own `total` or
+                    # `has_more` says ads exist: the content was not
+                    # obtained, so this is not an empty region.
+                    logger.error("%s page %d: the response states ads exist "
+                                 "(total=%s, has_more=%s) but carried none.",
+                                 region, page, diag.get("total"),
+                                 diag.get("has_more"))
+                    failed.append(index)
+                    stopped_early[region] = "parse_error"
+                    break
                 stopped_early[region] = "no_ads"
                 break
 
@@ -1018,7 +1027,7 @@ def _run_ads(session_box, pw, args, pool) -> Tuple[List[Any], Dict[str, Any]]:
 
             # The END OF LISTING is read from the site's own cursor, never
             # from `has_more` alone and never from the row count.
-            # CLAUDE.md §23 and §24: on three sites now, the response has
+            # On three sites now, the response has
             # stated what it actually served, and that statement is the
             # only unambiguous signal.
             cursor = diag.get("cursor") or ""
@@ -1078,7 +1087,7 @@ def _run_ads(session_box, pw, args, pool) -> Tuple[List[Any], Dict[str, Any]]:
         "regions_without_ads": empty or None,
         "ads_per_region": per_region or None,
         "why_each_region_stopped": stopped_early or None,
-        # CLAUDE.md §21: "complete" and "exhaustive" are different words,
+        # "complete" and "exhaustive" are different words,
         # and here the gap is enormous — the library reports millions of
         # ads per region and serves twelve at a time. A run that says only
         # "complete" is lying by omission.
@@ -1152,7 +1161,7 @@ def scrape(args) -> int:
     extra["engine"] = ENGINE_NAME
     extra["category"] = args.category
 
-    # CLAUDE.md §21: complete and exhaustive are different words, and on
+    # Complete and exhaustive are different words, and on
     # this route the gap is the largest in the family. The library reports
     # millions of ads per region and serves twelve at a time.
     totals = meta.get("site_total_per_region") or {}
@@ -1235,10 +1244,13 @@ def parse_args(argv: Optional[List[str]] = None):
                         "wrote them; this does not translate a row.")
     p.add_argument("--format", choices=("json", "csv", "both"), default="json")
     p.add_argument("--out", default="tiktok_ads", help="Output file prefix.")
-    p.add_argument("--delay", type=float, default=0.0,
+    p.add_argument("--delay", type=page_flow.non_negative_float, default=0.0,
                    help="Seconds between requests.")
-    p.add_argument("--retries", type=int, default=2)
-    p.add_argument("--retry-delay", type=float, default=2.0)
+    p.add_argument("--retries", type=page_flow.non_negative_int, default=2,
+                   help="EXTRA attempts after the first, per page (default "
+                        "2). 0 fetches each page once.")
+    p.add_argument("--retry-delay", type=page_flow.non_negative_float,
+                   default=2.0, help="Seconds to wait before a retry.")
     p.add_argument("--concurrency", type=int, default=1,
                    help="Forced to 1. The library paginates by a cursor the "
                         "previous response hands back, so a second worker "
@@ -1249,7 +1261,8 @@ def parse_args(argv: Optional[List[str]] = None):
     p.add_argument("--proxy-file", default=None)
     p.add_argument("--proxy-rotate", choices=ROTATE_MODES, default="per-run")
     p.add_argument("--proxy-shuffle", action="store_true")
-    p.add_argument("--proxy-block-retries", type=int, default=2)
+    p.add_argument("--proxy-block-retries", type=page_flow.non_negative_int,
+                   default=2)
     p.add_argument("--twocaptcha-key", default=None,
                    help="2Captcha API key. Also read from TWOCAPTCHA_KEY. "
                         "Not needed for this route.")

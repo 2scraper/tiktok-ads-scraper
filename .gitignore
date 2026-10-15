@@ -19,7 +19,7 @@ tiktok_ads.*
 tiktok_ads_*.*
 
 # --- working directories, by KIND rather than by name ---------------------
-# CLAUDE.md §24: a sibling listed `live_results/` and a 1.5 MB raw capture
+# A sibling listed `live_results/` and a 1.5 MB raw capture
 # reached `git add -A` through a directory called `live/` instead — a name
 # nobody had thought to list. The family paid for this lesson twice through
 # two different names. Match the KIND of directory, not one spelling of it.
@@ -95,7 +95,7 @@ secrets*
 # recoverable only because that repo was private at the time. On 2026-09-17
 # a sibling had an untracked `.env.bak` holding a 32-hex key in a PUBLIC
 # repository, one `git add -A` from publication. Craigslist was fixed then
-# and the fix never reached anyone else, which is §16's rule unapplied: when
-# you fix one, check the siblings.
+# and the fix never reached anyone else, which is the rule: when you fix
+# one, check the siblings.
 .env*
 !.env.example
