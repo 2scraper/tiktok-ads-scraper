@@ -264,7 +264,9 @@ def _check_comparable(args) -> bool:
                 f"{label} ({path}) is a {mode!r} run, which is not one row "
                 f"per sku. This tool diffs one row per sku, so there "
                 f"is nothing here it can compare.")
-        if status != "complete":
+        # "empty" is a finished run whose answer was nothing (written only
+        # with --allow-empty): complete, so it compares like one.
+        if status not in ("complete", "empty"):
             problems.append(
                 f"{label} ({path}) was a {status!r} run — stopped after "
                 f"{meta.get('pages_completed')} of {meta.get('pages_requested')} "
