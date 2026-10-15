@@ -8,6 +8,8 @@ a default changes in one, the note leads with it.
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-10-15
+
 > **Behaviour changes.** A response whose own `total` or `has_more` says
 > ads exist but whose `data` is empty is now a failure, not "no ads": a run
 > holding nothing exits **5** (was 4), and a run with other rows exits 6.
