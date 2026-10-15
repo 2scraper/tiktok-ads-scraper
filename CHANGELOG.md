@@ -12,8 +12,29 @@ a default changes in one, the note leads with it.
 > response's own `total` says more remain now makes the run incomplete:
 > `stop_reason: short_page`, status `partial`, exit **6** (was status
 > `complete`, exit 0). The ads it did serve are kept.
+>
+> **Behaviour change.** `--allow-empty` now writes an empty file only for a
+> genuine empty result, and its sidecar says `status: empty` (was
+> `failed`). A blocked or failed run with `--allow-empty` no longer
+> replaces an earlier output with an empty file. It keeps its exit code
+> (3 or 5) and leaves that output and its sidecar untouched.
 
 ### Fixed
+
+- **`--allow-empty` could destroy the output it exists to protect.** With
+  the flag, a blocked run or a run that never obtained its content wrote
+  an empty JSON and CSV over the previous good result, plus a sidecar
+  saying `failed`. A genuinely empty, complete run (the library's own
+  `total: 0`) was labelled `failed` too, so `diff_runs.py` refused it. Now:
+  - A finished run whose answer was nothing writes `[]`, a header-only
+    CSV and a sidecar with `status: empty` and its `stop_reason`. It
+    exits 4.
+  - Blocked (3), never obtained (5) and partial (6) keep their exit codes.
+    No empty row file is written for them, and an earlier output at the
+    same `--out` is kept byte for byte, sidecar included.
+  - When nothing earlier exists, a blocked or failed `--allow-empty` run
+    writes only a sidecar, with `status: blocked` or `failed`.
+  - `diff_runs.py` compares an `empty` run like a complete one.
 
 - **A listing cut short was reported as a complete region.** On
   2026-10-13 the library served France two ads on page 1, with

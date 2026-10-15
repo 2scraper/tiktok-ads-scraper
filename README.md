@@ -200,7 +200,22 @@ return a body that is not JSON at all, while DE, FR and GB return ads.
 | 5 | the content was never obtained — including a response that states ads exist (`total` above zero or `has_more` true) and carries none |
 | 6 | partial — including a region whose listing was cut short (fewer than twelve ads on a page while the stated total says more remain) |
 
-**A run that finds nothing writes nothing.** `--allow-empty` is the opt-out.
+**A run that finds nothing writes nothing**, so an earlier good output
+survives.
+
+**`--allow-empty` is for a genuine empty result only.** With it, a run
+that finished and found nothing writes an empty JSON (`[]`), a CSV holding
+only its header, and a sidecar with `status: empty` and its `stop_reason`,
+and still exits `4`. It never turns a blocked or failed run into an empty
+one. A blocked run still exits `3`. A run whose content was never obtained,
+including a response that states ads exist and carries none, still exits
+`5`. A run that saved ads and then stopped early, a cut-short listing
+included, still exits `6`. For the zero-row failures no empty row file is
+written, and an earlier output at the same `--out` is left untouched,
+sidecar included. Only when nothing earlier exists there does a blocked or
+failed `--allow-empty` run write a sidecar on its own, with
+`status: blocked` or `failed`. `diff_runs.py` compares an `empty` run like
+a complete one.
 
 **`--query` filters since v0.1.2, and did not before.** Until then the
 keyword was sent without the search type the library's own UI sends, and

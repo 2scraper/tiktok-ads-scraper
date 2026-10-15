@@ -554,9 +554,11 @@ def finish_run(rows: Sequence[Any], out_prefix: str, fmt: str,
     Shared by all three browser engines so the status/exit-code mapping
     cannot drift between them.
 
-    The metadata sidecar is written ONLY when the row file was written.
-    Otherwise a failed run would leave a "status": "failed" sidecar next to
-    the previous run's still-intact good output (which `save` deliberately
+    The metadata sidecar is written when the row file was written, and
+    for a blocked or failed `--allow-empty` run only when no earlier row
+    file exists at that path. Otherwise a failed run would leave a
+    "status": "failed" sidecar next to the previous run's still-intact good
+    output (which `save` deliberately
     does not overwrite) — the two files would contradict each other, and
     diff_runs.py would refuse to compare data that is in fact fine.
     """
@@ -579,13 +581,45 @@ def finish_run(rows: Sequence[Any], out_prefix: str, fmt: str,
     complete = stop_reason in COMPLETE_STOP_REASONS and not pages_failed
     row_cls = ROW_CLASS_BY_MODE.get(mode, Advertisement)
     write_stats: dict = {}
-    rc = save(rows, out_prefix, fmt, allow_empty=allow_empty, row_cls=row_cls,
-              stats=write_stats)
-    wrote_output = bool(rows) or allow_empty
+    # `--allow-empty` writes an empty file ONLY for a genuine empty result:
+    # the run finished, nothing stood in its way, and the answer was
+    # nothing. A blocked or failed run (a parser that found nothing on a
+    # page stating rows included: it reaches here with a failed page) is
+    # not an answer, so the flag never writes an empty file over a
+    # previous good result for one, and never turns its exit code into 4.
+    genuine_empty = not rows and complete and not blocked
+    failure_sidecar = False
+    if rows or genuine_empty:
+        rc = save(rows, out_prefix, fmt, allow_empty=allow_empty, row_cls=row_cls,
+                  stats=write_stats)
+        wrote_output = bool(rows) or allow_empty
+    else:
+        rc = EXIT_FETCH_FAILED   # replaced below by blocked/failed
+        wrote_output = False
+        kept = [f"{out_prefix}{ext}" for ext in (".json", ".csv")
+                if os.path.exists(f"{out_prefix}{ext}")]
+        if kept:
+            print(f"[!] Nothing was written: this run was "
+                  f"{'blocked' if blocked else 'a failure'} ({stop_reason}), so "
+                  f"the earlier output ({', '.join(kept)}) and its sidecar "
+                  f"are kept as they were.")
+        elif allow_empty:
+            # Nothing to preserve, so the sidecar can say what happened
+            # without contradicting an earlier good result. No row file.
+            failure_sidecar = True
+            print(f"[!] --allow-empty writes an empty file only for a "
+                  f"genuine empty result. This run was "
+                  f"{'blocked' if blocked else 'a failure'} ({stop_reason}): no "
+                  f"row file was written, only {out_prefix}.meta.json.")
 
-    if wrote_output:
-        status = "complete" if (rows and complete) else (
-            "partial" if rows else "failed")
+    if wrote_output or failure_sidecar:
+        if rows:
+            status = "complete" if complete else "partial"
+        elif genuine_empty:
+            # A finished run whose answer was nothing: complete, and empty.
+            status = "empty"
+        else:
+            status = "blocked" if blocked else "failed"
         # Merged UNDER the caller's `extra`: an engine's own facts win a
         # name collision.
         if write_stats:

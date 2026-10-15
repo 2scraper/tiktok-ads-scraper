@@ -3019,6 +3019,108 @@ def check_no_citation_of_private_instructions_ships():
           not hits, ", ".join(hits[:10]))
 
 
+def _allow_empty_contract(O, row_cls):
+    """(label, got, want) for every outcome `--allow-empty` must keep apart.
+
+    The flag writes an empty file, with a CSV header and a sidecar saying
+    `status: empty`, ONLY for a genuine empty result: a finished run whose
+    answer was nothing (exit 4). Blocked (3), never-obtained or parser
+    failure (5) and partial (6) keep their exit codes, and an earlier good
+    output is never overwritten for them, rows or sidecar.
+    """
+    import types
+    import diff_runs
+    out = []
+    good = [row_cls(sku="A1", title="yesterday")]
+
+    def run(prefix, rows, allow, **kw):
+        base = dict(blocked=False, stop_reason="completed", pages_requested=1,
+                    pages_completed=1, start_url="u", final_url="u",
+                    mode=O.UNIQUE_BY_SKU_MODES[0])
+        base.update(kw)
+        with open(os.devnull, "w") as sink, redirect_stdout(sink):
+            return O.finish_run(rows, prefix, "both", allow, **base)
+
+    def snapshot(prefix):
+        return {ext: open(prefix + ext, "rb").read()
+                for ext in (".json", ".csv", ".meta.json")
+                if os.path.exists(prefix + ext)}
+
+    failures = (
+        ("blocked", dict(blocked=True, stop_reason="blocked",
+                         pages_completed=0), O.EXIT_BLOCKED, "blocked"),
+        ("never obtained", dict(stop_reason="page_failed", pages_completed=0,
+                                pages_failed=[1]), 5, "failed"),
+        ("a parser failure on a served page",
+         dict(stop_reason="completed", pages_failed=[1]), 5, "failed"),
+    )
+    with tempfile.TemporaryDirectory() as d:
+        # A genuine empty result.
+        p = os.path.join(d, "empty")
+        rc = run(p, [], True)
+        out.append(("genuine empty + --allow-empty: exit", rc,
+                    O.EXIT_NO_PRODUCTS))
+        out.append(("...the JSON is []",
+                    json.load(open(p + ".json", encoding="utf-8")), []))
+        header = open(p + ".csv", encoding="utf-8").read().splitlines()
+        out.append(("...the CSV is its header and nothing else",
+                    (len(header), "sku" in (header[0] if header else "")),
+                    (1, True)))
+        meta = json.load(open(p + ".meta.json", encoding="utf-8"))
+        out.append(("...the sidecar says empty, why, and 0 rows",
+                    (meta.get("status"), meta.get("stop_reason"),
+                     meta.get("products")), ("empty", "completed", 0)))
+        p2 = os.path.join(d, "empty_plain")
+        rc = run(p2, [], False)
+        out.append(("genuine empty without the flag: exit 4, nothing written",
+                    (rc, snapshot(p2)), (O.EXIT_NO_PRODUCTS, {})))
+
+        # An empty run compares like a complete one.
+        g = os.path.join(d, "good0")
+        run(g, good, False)
+        with open(os.devnull, "w") as sink, redirect_stdout(sink), \
+                redirect_stderr(sink):
+            ok = diff_runs._check_comparable(types.SimpleNamespace(
+                old=g + ".json", new=p + ".json", force=False))
+        out.append(("diff_runs compares a complete run with an empty one",
+                    bool(ok), True))
+
+        for label, kw, code, status in failures:
+            # Over a previous good result: nothing at all changes.
+            p = os.path.join(d, label.replace(" ", "_"))
+            run(p, good, False)
+            before = snapshot(p)
+            rc = run(p, [], True, **kw)
+            out.append(("%s + --allow-empty: exit" % label, rc, code))
+            out.append(("...the earlier output and its sidecar are kept "
+                        "byte for byte" % (), snapshot(p) == before, True))
+            # With nothing to preserve: the sidecar alone, with the truth.
+            q = p + "_fresh"
+            rc = run(q, [], True, **kw)
+            meta = (json.load(open(q + ".meta.json", encoding="utf-8"))
+                    if os.path.exists(q + ".meta.json") else {})
+            out.append(("%s, nothing earlier: exit, row files, status"
+                        % label,
+                        (rc, os.path.exists(q + ".json"),
+                         os.path.exists(q + ".csv"), meta.get("status")),
+                        (code, False, False, status)))
+
+        # Rows, then a failure: partial whatever the flag says.
+        p = os.path.join(d, "partial")
+        rc = run(p, good, True, stop_reason="page_failed", pages_requested=2,
+                 pages_failed=[2])
+        meta = json.load(open(p + ".meta.json", encoding="utf-8"))
+        out.append(("rows then a failure + --allow-empty: exit 6, partial",
+                    (rc, meta.get("status")), (O.EXIT_PARTIAL, "partial")))
+    return out
+
+
+def check_allow_empty_writes_only_a_genuine_empty_result():
+    import output_writer as O
+    for label, got, want in _allow_empty_contract(O, O.Advertisement):
+        equal(label, got, want)
+
+
 CHECKS = [v for k, v in sorted(globals().items()) if k.startswith("check_")
           and callable(v) and k != "check"]
 
