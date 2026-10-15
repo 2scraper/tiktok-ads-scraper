@@ -33,6 +33,12 @@ a default changes in one, the note leads with it.
   first page of twelve and at least one new ad on page 2 in every region,
   fails on any recorded short page, and re-checks every dumped payload
   for a short page the run did not record.
+- **The canary no longer requires `creative_type` on every row.** Some
+  records carry no creative at all: on 2026-10-15, 4 of 71 had
+  `videos: []` and `image_urls: []` in the payload itself, and the
+  parser's null is the honest value for them. The canary now checks the
+  column against the dumped record. It must be null exactly when the
+  record carries neither a video nor an image.
 
 ## [0.2.0] — 2026-10-15
 

@@ -77,7 +77,7 @@ jobs:
       - name: Assert what the run actually produced
         run: |
           python - <<'PY'
-          import json, sys
+          import glob, json, re, sys
 
           rc = int("${{ steps.run.outputs.exit_code }}")
           meta = json.load(open("canary_ads.meta.json"))
@@ -124,7 +124,6 @@ jobs:
           # must carry a full page, unless it brings the region up to the
           # response's stated total. A short page the scraper did not flag
           # is a defect in its run status.
-          import glob, re
           served = {}
           for path in sorted(glob.glob("canary_ads_ads_*_p*.json")):
               m = re.search(r"_ads_([A-Z]{2})_p(\d+)\.json$", path)
@@ -168,10 +167,36 @@ jobs:
 
           # Columns that must be on every row.
           for column in ("sku", "ad_id", "region", "first_shown_at",
-                         "last_shown_at", "creative_type"):
+                         "last_shown_at"):
               missing = [r["sku"] for r in rows if r.get(column) is None]
               if missing:
                   fail.append(f"{column} is null on {len(missing)} row(s)")
+
+          # `creative_type` is derived from the creatives a record carries,
+          # and some records carry none: on 2026-10-15 four of 71 had
+          # `videos: []` and `image_urls: []` in the payload itself, and
+          # null is the honest value for them. So it is tested against
+          # the dumped record: null exactly when the record has neither.
+          raw = {}
+          for path in glob.glob("canary_ads_ads_*_p*.json"):
+              m = re.search(r"_ads_([A-Z]{2})_p\d+\.json$", path)
+              page = json.load(open(path))
+              if m and isinstance(page, dict):
+                  for ad in page.get("data") or []:
+                      if isinstance(ad, dict) and ad.get("id"):
+                          raw[(m.group(1), str(ad["id"]))] = ad
+          for r in rows:
+              ad = raw.get((r.get("region"), str(r.get("ad_id"))))
+              if ad is None:
+                  continue
+              carries = bool([v for v in ad.get("videos") or []
+                              if isinstance(v, dict) and v.get("video_url")]
+                             or [u for u in ad.get("image_urls") or [] if u])
+              if carries != (r.get("creative_type") is not None):
+                  fail.append(f"{r['sku']}: creative_type "
+                              f"{r.get('creative_type')!r} while the record "
+                              f"{'carries' if carries else 'has no'} "
+                              f"creative")
 
           # Dates in this century. TikTok publishes milliseconds; read as
           # seconds they land in the year 58,700.

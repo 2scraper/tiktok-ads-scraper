@@ -2853,6 +2853,33 @@ def check_a_short_page_under_a_large_total_is_an_incomplete_run():
                        "total": 17071905, "has_more": False})
 
 
+# A real record from the 2026-10-15 canary (FR page 1): the library served
+# it with no video and no image at all.
+NO_CREATIVE_AD = {
+    "id": "1879148314137938", "name": "", "audit_status": "2", "type": "2",
+    "first_shown_date": 1792099223000, "last_shown_date": 1792099223000,
+    "videos": [], "estimated_audience": "0-1K", "spent": "",
+    "impression": 0, "show_mode": 1, "image_urls": [],
+    "rejection_info": None, "sor_audit_status": "2", "title": "Ver Más"}
+
+
+def check_a_record_without_creatives_has_a_null_creative_type():
+    """`creative_type` comes from the creatives a record carries. A record
+    with none is null — not "video", not a parse error — and the canary
+    tests the column against the dumped record rather than requiring it."""
+    page = copy.deepcopy(payload("de_page1"))
+    page["data"] = [NO_CREATIVE_AD, page["data"][0]]
+    parsed, _ = product_parser.parse_search(page, "FR", SCRAPED_AT, 1,
+                                            Advertisement)
+    equal("a record with no creative parses", len(parsed), 2)
+    equal("...with creative_type null", parsed[0].creative_type, None)
+    equal("...and its other fields intact",
+          (parsed[0].ad_id, parsed[0].title, parsed[0].first_shown_at[:4]),
+          ("1879148314137938", "Ver Más", "2026"))
+    check("a record WITH a creative still has a type",
+          parsed[1].creative_type is not None)
+
+
 def check_output_files_honour_the_umask_and_keep_an_existing_mode():
     """`NamedTemporaryFile` is 0600 and a rename keeps it: without a chmod
     every output was owner-only whatever the umask said."""
