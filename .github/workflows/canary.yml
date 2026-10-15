@@ -21,8 +21,9 @@
 # challenge the badge goes red the next day and the claim is retested
 # without anyone having to remember to.
 #
-# Any exit other than 0 (blocked 3, nothing obtained 5, partial 6) and any
-# region short of a full page is red: there is no skip and no notice path.
+# Any exit other than 0 (blocked 3, nothing obtained 5, partial 6 —
+# including a listing the site cut short) and any region short of a full
+# page is red: there is no skip and no notice path.
 name: canary
 
 on:
@@ -95,15 +96,57 @@ jobs:
               fail.append(f"{len(rows)} rows — six cursor pages of twelve "
                           f"should land between 40 and 72 after dedupe")
 
-          # Every region must have produced ads. A region silently
-          # returning nothing is the failure mode that `row_key` fixed,
-          # and the canary is what keeps it fixed.
+          # Per region, the floor is the endpoint's own page contract,
+          # not a volume: page 1 is a full page of twelve distinct ads,
+          # and page 2 adds at least one ad page 1 did not have (adjacent
+          # pages of this live feed overlap by up to a few ads). Measured
+          # 2026-09-23..10-15: every green run held 21-24 ads per region
+          # from two pages; the one region below that (FR, 2 ads,
+          # 2026-10-13) was a page cut short, which the scraper itself now
+          # reports as `short_page`, exit 6. A region collapsing is also
+          # the bug row_key exists to prevent.
           per_region = meta.get("ads_per_region") or {}
           for region in ("DE", "FR", "GB"):
-              if per_region.get(region, 0) < 12:
-                  fail.append(f"{region} produced {per_region.get(region)} "
-                              f"ads — a region collapsing is exactly the "
-                              f"bug row_key exists to prevent")
+              p1 = sum(1 for r in rows
+                       if r.get("region") == region and r.get("page") == 1)
+              p2 = sum(1 for r in rows
+                       if r.get("region") == region and r.get("page") == 2)
+              if p1 != meta.get("ads_per_page", 12) or p2 < 1:
+                  fail.append(f"{region}: page 1 gave {p1} ads and page 2 "
+                              f"{p2} new — a full page then at least one "
+                              f"new ad was expected "
+                              f"(region total {per_region.get(region)})")
+          if meta.get("short_pages"):
+              fail.append(f"the site cut a listing short: "
+                          f"{meta['short_pages']}")
+
+          # Independent of the scraper's own verdict: every dumped page
+          # must carry a full page, unless it brings the region up to the
+          # response's stated total. A short page the scraper did not flag
+          # is a defect in its run status.
+          import glob, re
+          served = {}
+          for path in sorted(glob.glob("canary_ads_ads_*_p*.json")):
+              m = re.search(r"_ads_([A-Z]{2})_p(\d+)\.json$", path)
+              page = json.load(open(path))
+              if not m or not isinstance(page, dict):
+                  continue
+              region, n = m.group(1), int(m.group(2))
+              got = len(page.get("data") or [])
+              before = served.get(region, 0)
+              served[region] = before + got
+              total = page.get("total")
+              if (0 < got < meta.get("ads_per_page", 12)
+                      and isinstance(total, int)
+                      and total > before + got
+                      and not any(s.get("region") == region
+                                  and s.get("page") == n
+                                  for s in meta.get("short_pages") or [])):
+                  fail.append(f"{region} page {n} served {got} under a "
+                              f"total of {total} and the run did not "
+                              f"record it in short_pages")
+          if not served:
+              fail.append("no page payloads were dumped")
 
           # row_key must be unique while ad ids need not be.
           keys = [r.get("row_key") for r in rows]

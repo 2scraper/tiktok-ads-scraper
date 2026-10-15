@@ -8,6 +8,32 @@ a default changes in one, the note leads with it.
 
 ## [Unreleased]
 
+> **Behaviour change.** A page that serves fewer than twelve ads while the
+> response's own `total` says more remain now makes the run incomplete:
+> `stop_reason: short_page`, status `partial`, exit **6** (was status
+> `complete`, exit 0). The ads it did serve are kept.
+
+### Fixed
+
+- **A listing cut short was reported as a complete region.** On
+  2026-10-13 the library served France two ads on page 1, with
+  `has_more: false` beside `total: 17,071,905`, and Germany eleven on
+  page 2. The run stopped those regions as `has_more_false` and ended
+  complete. The site's page size is twelve (45 of the 47 pages in the
+  canary artifacts from 2026-10-09 to 2026-10-15 carried exactly twelve)
+  and it documents no cap, so all three engines now record such a page
+  under `short_pages` in the sidecar and stop that region as
+  `short_page`. A short last page that brings the count up to the stated
+  total is still the end of the listing, and the run is complete.
+
+### Changed
+
+- **The canary's per-region floor follows the page contract, not a
+  count.** It required at least 12 ads per region. It now requires a full
+  first page of twelve and at least one new ad on page 2 in every region,
+  fails on any recorded short page, and re-checks every dumped payload
+  for a short page the run did not record.
+
 ## [0.2.0] — 2026-10-15
 
 > **Behaviour changes.** A response whose own `total` or `has_more` says

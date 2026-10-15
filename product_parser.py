@@ -339,7 +339,36 @@ def parse_search(payload: Any, region: str, scraped_at: str, page: int,
             f"search response carried {len(ads)} record(s) and none had an "
             f"`id` — the record shape has changed")
     diag["count"] = len(rows)
+    # Records as SERVED, before any is skipped: the short-page test below
+    # compares what the server sent with its own page size and total.
+    diag["served"] = len(ads)
     return rows, diag
+
+
+def page_is_short(served_on_page: Optional[int], served_before: int,
+                  total: Optional[int],
+                  page_size: int = ADS_PER_PAGE) -> bool:
+    """True when a page served fewer than a full page of records while
+    the response's own `total` says more remain.
+
+    The endpoint serves twelve per page: 45 of the 47 cursor pages in the
+    daily canary's artifacts from 2026-10-09 to 2026-10-15 carried exactly
+    twelve. Both exceptions were in one run, on 2026-10-13: France's first
+    page carried TWO records, with `has_more: false` beside
+    `total: 17,071,905`, and Germany's second page carried eleven the
+    same way. The site documents no cap that would
+    explain either, so a page like that is the listing being cut short,
+    not its end: the run is incomplete.
+
+    A short page at the TRUE end — everything the total counts has now
+    been served — is not short. Without a total there is no evidence
+    either way, and the page is not flagged.
+    """
+    if not served_on_page or served_on_page >= page_size:
+        return False
+    if total is None:
+        return False
+    return total > served_before + served_on_page
 
 
 # ---------------------------------------------------------------------------

@@ -966,6 +966,11 @@ def _run_ads(session_box, pw, args, pool) -> Tuple[List[Any], Dict[str, Any]]:
     totals: Dict[str, Optional[int]] = {}
     empty: List[str] = []
     stopped_early: Dict[str, str] = {}
+    # Pages that served less than a full page while the response's own
+    # total said more remained. Each makes the run incomplete (see
+    # `parser.page_is_short`); they are recorded rather than retried,
+    # because the next cursor page is what the server said does not exist.
+    short_pages: List[Dict[str, Any]] = []
 
     for index, region in enumerate(regions, start=1):
         if index > 1 and args.delay:
@@ -976,6 +981,7 @@ def _run_ads(session_box, pw, args, pool) -> Tuple[List[Any], Dict[str, Any]]:
         url = search_url(region, start_time, end_time, args.ad_type)
         cursor = ""
         got_here = 0
+        served_here = 0
         last_cursor_position = -1
 
         # Through the shared policy rather than recomputed here. The
@@ -1037,6 +1043,21 @@ def _run_ads(session_box, pw, args, pool) -> Tuple[List[Any], Dict[str, Any]]:
             # On `row_key`, not `sku`: the same ad id legitimately
             # appears under several regions, and deduping across them
             # collapsed France's twelve ads to two in testing.
+            served = diag.get("served")
+            short = parser.page_is_short(served, served_here,
+                                         diag.get("total"))
+            served_here += served or 0
+            if short:
+                logger.warning("%s page %d served %d of the %d ads a page "
+                               "holds while the response states %s exist: "
+                               "the listing was cut short, so this run is "
+                               "incomplete.", region, page, served,
+                               parser.ADS_PER_PAGE, diag.get("total"))
+                short_pages.append({"region": region, "page": page,
+                                    "served": served,
+                                    "total": diag.get("total"),
+                                    "has_more": diag.get("has_more")})
+
             fresh = dedupe_by_key(page_rows, seen, key="row_key")
             overlap += len(page_rows) - len(fresh)
             pages_fetched += 1
@@ -1051,6 +1072,11 @@ def _run_ads(session_box, pw, args, pool) -> Tuple[List[Any], Dict[str, Any]]:
             cursor = diag.get("cursor") or ""
             decoded = diag.get("cursor_decoded") or {}
             position = decoded.get("next_cursor")
+            if short and not diag.get("has_more"):
+                # The server ended the listing on a short page: the end of
+                # what it would serve, not the end of what it counts.
+                stopped_early[region] = "short_page"
+                break
             if not cursor:
                 stopped_early[region] = "cursor_exhausted"
                 break
@@ -1080,6 +1106,9 @@ def _run_ads(session_box, pw, args, pool) -> Tuple[List[Any], Dict[str, Any]]:
         stop_reason = "blocked"
     elif failed:
         stop_reason = "page_failed"
+    elif short_pages:
+        # Not a COMPLETE reason, so the run ends partial (exit 6).
+        stop_reason = "short_page"
     elif rows:
         stop_reason = "completed"
     else:
@@ -1105,6 +1134,7 @@ def _run_ads(session_box, pw, args, pool) -> Tuple[List[Any], Dict[str, Any]]:
         "regions_without_ads": empty or None,
         "ads_per_region": per_region or None,
         "why_each_region_stopped": stopped_early or None,
+        "short_pages": short_pages or None,
         # "complete" and "exhaustive" are different words,
         # and here the gap is enormous — the library reports millions of
         # ads per region and serves twelve at a time. A run that says only
