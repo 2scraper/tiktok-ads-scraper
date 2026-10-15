@@ -332,7 +332,7 @@ def _check_comparable(args) -> bool:
                       f"{total:,} ads the library reports for {region} — a "
                       f"complete run, and a sample. A `removed` line may mean "
                       f"the sample moved rather than that the ad stopped "
-                      f"running. CLAUDE.md §21: complete and exhaustive are "
+                      f"running. Complete and exhaustive are "
                       f"different words.")
 
     if not problems:

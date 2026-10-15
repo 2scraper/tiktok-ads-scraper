@@ -59,7 +59,7 @@ jobs:
         # check still imported the row dataclass by a name this repo renamed,
         # and it failed on this repo's FIRST push while the script it
         # duplicates passed — two sources of truth, one of them stale, which
-        # is exactly the defect CLAUDE.md §17 describes.
+        # is a defect worth a check of its own.
         #
         # So: one implementation, and `smoke_test.py` now asserts the workflow
         # does not grow another one.
@@ -150,7 +150,7 @@ jobs:
         # version of this step looked for "<engine>_scraper could not be
         # imported", a string no suite in this family emits, so the job could
         # never fail and passed for the wrong reason — which is the whole
-        # thing §10 says this job exists to prevent ("skipped, engine absent"
+        # thing this job exists to prevent ("skipped, engine absent"
         # reading identically to a real import error). Checked 2026-09-18:
         # seven sibling repos carry the same dead grep.
         #

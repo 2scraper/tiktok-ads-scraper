@@ -35,7 +35,7 @@ import requests
 
 logger = logging.getLogger("http_transport")
 
-# Every remote call is bounded (CLAUDE.md §8). `requests` imposes no
+# Every remote call is bounded. `requests` imposes no
 # timeout of its own, and a hung socket with no timeout is a run that
 # never ends and never says why.
 REQUEST_TIMEOUT = 30
@@ -52,7 +52,7 @@ def _mask(text: Any) -> str:
     `HTTPError` and of every connection error, so an endpoint that takes a
     key as a query parameter leaks it the moment anything goes wrong. And
     a masker that handles the first occurrence prints the password the
-    other four times while looking like it works (CLAUDE.md §8).
+    other four times while looking like it works.
     """
     out = str(text)
     out = re.sub(r"(?i)\b((?:client)?key|token|api[_-]?key|password)=[^&\s\"']+",
@@ -82,7 +82,7 @@ class HttpSession:
         if proxy_url:
             # Credentials ride in the session's own proxy field, never on
             # a command line — the same rule the browser engines follow
-            # for `--proxy-server` (CLAUDE.md §8). Unlike Selenium, an
+            # for `--proxy-server`. Unlike Selenium, an
             # HTTP client CAN authenticate a proxy, which is worth knowing
             # when choosing a transport.
             self.session.proxies.update({"http": proxy_url,

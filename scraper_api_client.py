@@ -17,7 +17,7 @@ need no key.
 
     # TWOCAPTCHA_KEY and TIKTOK_URL are read from .env, so neither needs
     # to be typed — a secret in argv is readable by anything that can run
-    # `ps` (CLAUDE.md §3).
+    # `ps`.
 """
 
 import argparse
@@ -33,8 +33,9 @@ import requests
 
 from product_parser import normalise_region, NotAnAdsQuery
 from tiktok_payload import PayloadError
-from output_writer import (EXIT_NO_PRODUCTS, Video, finish_run, utc_now)
+from output_writer import (EXIT_NO_PRODUCTS, finish_run, utc_now)
 import env_config
+import page_flow
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("scraper_api_client")
@@ -177,7 +178,7 @@ def fetch_html(args) -> str:
     # the word "success" against 400 and crashed on its first live run
     # (`'>=' not supported between 'str' and 'int'`), while the comment
     # beneath this line claimed the status was being threaded through.
-    # CLAUDE.md §16: re-read what a remote API actually returns, rather
+    # Re-read what a remote API actually returns, rather
     # than what the client's field names imply it returns.
     raw_status = body.get("http_code")
     try:
@@ -229,7 +230,7 @@ def _run_once(args, attempt: int = 1, attempts: int = 1) -> int:
     cannot produce that header for a request it is not making.
 
     So this path is refused up front rather than shipped as a client that
-    returns 421 forever. CLAUDE.md §19's rule about wording applies here
+    returns 421 forever. The wording matters here
     too: this is "THIS REPO does not implement it", not "it cannot be
     done" — a Scraper API session that ran the library's own search and
     returned the request headers would work, and that is a feature
@@ -287,10 +288,11 @@ def parse_args():
                       # measured 2026-09-23.
                       choices=("load", "domcontentloaded"),
                       help="Wait for a page lifecycle state.")
-    p.add_argument("--retries", type=int, default=1,
+    p.add_argument("--retries", type=page_flow.non_negative_int, default=1,
                    help="Retries when the response is a challenge page. Each "
                         "one is a fresh billable task.")
-    p.add_argument("--retry-delay", type=int, default=5)
+    p.add_argument("--retry-delay", type=page_flow.non_negative_float,
+                   default=5)
     p.add_argument("--dump-html", default=None,
                    help="Write the exact HTML the service returned.")
     p.add_argument("--allow-empty", action="store_true")

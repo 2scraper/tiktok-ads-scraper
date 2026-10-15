@@ -6,12 +6,11 @@
 #
 # WHY THIS CANARY IS NOT GATED ON A SECRET
 # ----------------------------------------
-# CLAUDE.md §11 says a canary that cannot pass must SKIP rather than fail,
-# because a check that is always red teaches everyone to ignore checks. The
-# other half of that rule is §21's, proven on bbb-scraper and rakuten-scraper: a
-# canary that CAN pass without a credential should never be gated on one.
+# A canary that CAN pass without a credential should never be gated on one:
+# a skipped canary is not a tested success (proven on bbb-scraper and
+# rakuten-scraper).
 #
-# This repo is the second case. Its central README claim is that TikTok's
+# This repo is such a case. Its central README claim is that TikTok's
 # EU Ad Library answers a bare datacentre address with no key, no proxy
 # and no account — measured 2026-09-22 from Hetzner Helsinki. The one
 # header that gates it is minted by the library's own page, which is why
@@ -22,8 +21,8 @@
 # challenge the badge goes red the next day and the claim is retested
 # without anyone having to remember to.
 #
-# The paid path is the one that skips: `scraper-api` needs TWOCAPTCHA_KEY
-# and says so with a ::notice:: when it is absent.
+# Any exit other than 0 (blocked 3, nothing obtained 5, partial 6) and any
+# region short of a full page is red: there is no skip and no notice path.
 name: canary
 
 on:
@@ -61,15 +60,17 @@ jobs:
       #
       # Two cursor pages, because with one page the CURSOR is never
       # exercised and `offset` being a decoy would go unnoticed — which is
-      # the same argument CLAUDE.md §11 makes for asking a canary for
-      # three pages.
+      # why a multi-page feature needs a multi-page check.
       - name: Scrape three regions, two cursor pages each
         id: run
         run: |
           set +e   # GitHub runs `run:` under `bash -e`, and a non-zero exit
                    # would abort the step BEFORE the echo below.
+          # --dump-html keeps the exact payloads, so a red run can be
+          # diagnosed from the artifact (a short page under a huge `total`,
+          # or an ad with no creative) rather than guessed at.
           python playwright_scraper.py --region DE,FR,GB --pages 2 \
-            --delay 0.3 --format both --out canary_ads
+            --delay 0.3 --format both --out canary_ads --dump-html
           echo "exit_code=$?" >> "$GITHUB_OUTPUT"
 
       - name: Assert what the run actually produced
@@ -83,7 +84,7 @@ jobs:
           fail = []
 
           # Exit 5 is a DEFECT here, not an access condition: this canary
-          # uses no credential (CLAUDE.md §24).
+          # uses no credential.
           if rc != 0:
               fail.append(f"exit {rc}")
           if meta["status"] != "complete":
@@ -198,6 +199,7 @@ jobs:
             canary_ads.json
             canary_ads.csv
             canary_ads.meta.json
+            canary_ads_ads_*.json
             canary_kw.meta.json
           retention-days: 7
 
@@ -210,5 +212,5 @@ jobs:
   # cannot produce one for a request it is not making.
   #
   # Saying that here rather than shipping a job that would skip forever
-  # (CLAUDE.md §11: a check that is always the same teaches everyone to
+  # (a check that is always the same teaches everyone to
   # ignore checks).

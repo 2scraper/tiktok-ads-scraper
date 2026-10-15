@@ -13,7 +13,7 @@ This repo reads one KIND of thing, so it carries one dataclass,
 tiktok-video-scraper and tiktok-shop-scraper — read different kinds and
 carry their own, and all of them keep the family prefix
 `source, scraped_at, url, sku, title` byte-identical and first
-(CLAUDE.md §9). `mode` is recorded in the run sidecar anyway, so a
+. `mode` is recorded in the run sidecar anyway, so a
 consumer holding files from several repos can tell them apart without
 knowing which repo wrote which.
 
@@ -62,7 +62,7 @@ class Advertisement:
 
     The family prefix — `source`, `scraped_at`, `url`, `sku`, `title` — is
     byte-identical and in this order across every repo in the family
-    (CLAUDE.md §9). `sku` is the ad id. `title` is the ad's own title where
+   . `sku` is the ad id. `title` is the ad's own title where
     it has one and the ADVERTISER's name where it does not, because a CSV
     of ten thousand ads has to be readable by something and 69 of 216 ads
     measured carried a title of their own.
@@ -91,7 +91,7 @@ class Advertisement:
     # So an ad id appearing under two regions is the site being correct,
     # not a duplicate, and deduping on `sku` across regions DESTROYS the
     # data — measured: a two-region run collapsed France's twelve ads to
-    # two. CLAUDE.md §9: dedupe on whatever is actually unique.
+    # two. Dedupe on whatever is actually unique.
     row_key: Optional[str] = None
     # The advertiser as TikTok publishes it. 211 of 216 ads measured carry
     # one; the other five are published with no name at all, and that is
@@ -101,7 +101,7 @@ class Advertisement:
     # Which of the 33 EU/EEA-plus regions this ad was found in. A COLUMN,
     # not a sidecar field: the same advertiser runs different ads in
     # different countries, and two runs of different regions are different
-    # samples rather than a change (CLAUDE.md §21's argument for ordering,
+    # samples rather than a change (the same argument as for ordering,
     # applied to geography).
     region: Optional[str] = None
 
@@ -143,13 +143,13 @@ class Advertisement:
     rejection_info: Optional[str] = None
     # TikTok's own bucket, e.g. "0-1K". A STRING because that is what it
     # is: a range, not a number, and turning it into one would be
-    # presenting a guess as a fact (CLAUDE.md §8).
+    # presenting a guess as a fact.
     estimated_audience: Optional[str] = None
     #
     # `impression` and `spent` are NOT here. TikTok publishes both fields
     # on every ad and both were EMPTY on all 216 measured across six
-    # regions and three pages each on 2026-09-22 — 0 of 216. CLAUDE.md §9:
-    # a column null on every row of every run should not exist, and
+    # regions and three pages each on 2026-09-22 — 0 of 216. A
+    # column null on every row of every run should not exist, and
     # removing it needs the measurement written down so somebody can add
     # it back with a better one. The likely reason is that the EU
     # transparency rules attach spend and reach to POLITICAL advertising,
@@ -160,10 +160,9 @@ class Advertisement:
     position: Optional[int] = None
 
 
-# The family name. CLAUDE.md §9 makes `Product` the schema every repo in
-# this family exports, and several shared checks import it by that name.
+# The family name. `Product` is the row schema every repo in this family
+# exports, and several shared checks import it by that name.
 Product = Advertisement
-Video = Advertisement
 
 
 # Row classes by --mode, so an engine maps its mode to a schema in one
@@ -233,6 +232,32 @@ def _csv_value(v: Any) -> Any:
     return v
 
 
+# A spreadsheet treats a cell beginning with one of these as a FORMULA, not
+# as text, and advertiser names, ad titles and creative URLs are written by
+# the advertiser rather than by this code. `=HYPERLINK(...)`, `+cmd|...` and
+# `@SUM(...)` are the classic shapes; a leading tab or newline is here
+# because some readers strip it and expose whatever follows.
+CSV_FORMULA_LEADS = ("=", "+", "-", "@", "\t", "\r", "\n")
+
+# Prefixed to a cell that would otherwise be read as a formula. Excel, Google
+# Sheets and LibreOffice treat the apostrophe as "the rest is text" and do not
+# show it; a consumer parsing the CSV with `csv` does see it, which is why
+# the count goes into the sidecar as `csv_cells_escaped`.
+CSV_FORMULA_ESCAPE = "'"
+
+
+def _csv_escape(v: Any):
+    """Neutralise a formula-shaped cell. Returns (value, was_escaped).
+
+    Only STRINGS are touched: escaping a number would turn `-5` into the
+    text `'-5` and break every sum over the column. CSV only — the JSON
+    output keeps the site's values exactly as served.
+    """
+    if isinstance(v, str) and v.startswith(CSV_FORMULA_LEADS):
+        return CSV_FORMULA_ESCAPE + v, True
+    return v, False
+
+
 @contextlib.contextmanager
 def _atomic(path: str, newline: Optional[str] = None):
     """Write to a temporary file beside `path`, then rename over it.
@@ -264,6 +289,18 @@ def _atomic(path: str, newline: Optional[str] = None):
             yield handle
             handle.flush()
             os.fsync(handle.fileno())
+        # `NamedTemporaryFile` creates the file 0600 and a rename keeps the
+        # temp file's mode, so without this every output would be readable
+        # by its owner alone, whatever the umask says. An existing target
+        # keeps its own mode (someone may have set it on purpose); a new one
+        # gets what `open(path, "w")` would have given it.
+        try:
+            mode = os.stat(path).st_mode & 0o777
+        except OSError:
+            umask = os.umask(0)
+            os.umask(umask)
+            mode = 0o666 & ~umask
+        os.chmod(handle.name, mode)
         os.replace(handle.name, path)
     except BaseException:
         # Leave the destination untouched. A failed write must not be
@@ -280,7 +317,7 @@ def write_json(rows: Sequence[Any], path: str) -> None:
         json.dump([asdict(r) for r in rows], f, ensure_ascii=False, indent=2)
 
 
-def write_csv(rows: Sequence[Any], path: str, row_cls: Type = Advertisement) -> None:
+def write_csv(rows: Sequence[Any], path: str, row_cls: Type = Advertisement) -> int:
     # An empty result still gets the header row. A zero-byte file makes a
     # consumer fail on read (no columns to parse) instead of reading a valid
     # table with zero rows — and "an empty result is still a well-formed
@@ -288,12 +325,23 @@ def write_csv(rows: Sequence[Any], path: str, row_cls: Type = Advertisement) -> 
     #
     # The header comes from `row_cls`, not from the first row, so an empty
     # run still writes the columns of the mode that produced it.
+    #
+    # Returns how many cells were formula-escaped.
     fieldnames = [f.name for f in fields(row_cls)]
+    escaped = 0
     with _atomic(path, newline="") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
         for r in rows:
-            writer.writerow({k: _csv_value(v) for k, v in asdict(r).items()})
+            row = {}
+            for k, v in asdict(r).items():
+                # Escape AFTER `_csv_value`: a list joined into one cell is
+                # text too, and its first element can be formula-shaped.
+                value, was_escaped = _csv_escape(_csv_value(v))
+                row[k] = value
+                escaped += was_escaped
+            writer.writerow(row)
+    return escaped
 
 
 # Exit code used when a run completes but produced nothing. Distinct from 1
@@ -433,7 +481,8 @@ def run_meta(status: str, stop_reason: str, pages_requested: int,
 
 
 def save(rows: Sequence[Any], out_prefix: str, fmt: str,
-         allow_empty: bool = False, row_cls: Type = Advertisement) -> int:
+         allow_empty: bool = False, row_cls: Type = Advertisement,
+         stats: Optional[dict] = None) -> int:
     """Write JSON/CSV and return a process exit code.
 
     Returns 0 when rows were written, EXIT_NO_PRODUCTS when there were none.
@@ -460,8 +509,17 @@ def save(rows: Sequence[Any], out_prefix: str, fmt: str,
         write_json(rows, f"{out_prefix}.json")
         print(f"[+] Saved {len(rows)} rows -> {out_prefix}.json")
     if fmt in ("csv", "both"):
-        write_csv(rows, f"{out_prefix}.csv", row_cls=row_cls)
+        escaped = write_csv(rows, f"{out_prefix}.csv", row_cls=row_cls)
         print(f"[+] Saved {len(rows)} rows -> {out_prefix}.csv")
+        # Through `stats` rather than the return value, because this
+        # function's return IS the exit code.
+        if stats is not None:
+            stats["csv_cells_escaped"] = escaped
+        if escaped:
+            print(f"[!] {escaped} CSV cell(s) began with a formula character "
+                  f"and were prefixed with {CSV_FORMULA_ESCAPE!r} so a "
+                  f"spreadsheet reads them as text. The JSON output is "
+                  f"unchanged — see csv_cells_escaped in the sidecar.")
     return 0 if rows else EXIT_NO_PRODUCTS
 
 
@@ -475,12 +533,9 @@ def save(rows: Sequence[Any], out_prefix: str, fmt: str,
 # the weaker signal — a renamed attribute looks identical to a short
 # catalogue.
 #
-# On TikTok the strongest end-of-listing signal is neither of those: where
-# a route paginates at all, the response itself states what it served —
-# the embed route's own `page` field, the Ad Library's `search_id` cursor
-# — and that statement is what ends a run. A route that answers every page
-# number with page one (the embed route does exactly this) is refused
-# `--pages` above 1 rather than re-collected.
+# On the Ad Library the strongest end-of-listing signal is neither of
+# those: the response itself states what it served through its `search_id`
+# cursor and `has_more`, and that statement is what ends a region.
 
 COMPLETE_STOP_REASONS = ("completed", "pagination_exhausted", "no_new_products",
                          "page_cap_reached", "page_echo_mismatch",
@@ -523,12 +578,18 @@ def finish_run(rows: Sequence[Any], out_prefix: str, fmt: str,
     # failed, the run is not complete, whatever it stopped for.
     complete = stop_reason in COMPLETE_STOP_REASONS and not pages_failed
     row_cls = ROW_CLASS_BY_MODE.get(mode, Advertisement)
-    rc = save(rows, out_prefix, fmt, allow_empty=allow_empty, row_cls=row_cls)
+    write_stats: dict = {}
+    rc = save(rows, out_prefix, fmt, allow_empty=allow_empty, row_cls=row_cls,
+              stats=write_stats)
     wrote_output = bool(rows) or allow_empty
 
     if wrote_output:
         status = "complete" if (rows and complete) else (
             "partial" if rows else "failed")
+        # Merged UNDER the caller's `extra`: an engine's own facts win a
+        # name collision.
+        if write_stats:
+            extra = {**write_stats, **(extra or {})}
         write_run_meta(out_prefix, run_meta(
             status=status, stop_reason=stop_reason,
             pages_requested=pages_requested, pages_completed=pages_completed,
