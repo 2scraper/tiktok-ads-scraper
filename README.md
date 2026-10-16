@@ -251,11 +251,11 @@ no key at all.
 
 ---
 
-## The daily canary
+## The weekly canary
 
-`.github/workflows/canary.yml` runs a real scrape every morning **from a
+`.github/workflows/canary.yml` runs a real scrape every Monday **from a
 bare GitHub runner with no secrets**, and is expected green — the README's
-central claim under test daily.
+central claim under test every week.
 
 ---
 

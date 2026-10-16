@@ -76,7 +76,7 @@ The second applies the credential rules CI enforces to **every blob that has
 ever existed**, not just the working tree. A commit on top cannot reach what a
 published tag already holds.
 
-The canary is **not** gated on a secret: the Ad Library needs no credential, so it scrapes three regions daily from a bare GitHub runner and is expected GREEN.
+The canary is **not** gated on a secret: the Ad Library needs no credential, so it scrapes three regions weekly (Mondays) from a bare GitHub runner and is expected GREEN.
 
 ## Pull requests
 

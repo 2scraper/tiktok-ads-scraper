@@ -16,9 +16,9 @@
 # header that gates it is minted by the library's own page, which is why
 # this canary drives a browser and why a 421 in its output would be a
 # real finding rather than an access condition. A GitHub runner is a bare datacentre address
-# in a different network. So this job runs a real scrape every morning and
+# in a different network. So this job runs a real scrape every Monday and
 # is EXPECTED to be green, and if TikTok ever puts that route behind a
-# challenge the badge goes red the next day and the claim is retested
+# challenge the badge goes red on the next weekly run and the claim is retested
 # without anyone having to remember to.
 #
 # Any exit other than 0 (blocked 3, nothing obtained 5, partial 6 —
@@ -28,7 +28,7 @@ name: canary
 
 on:
   schedule:
-    - cron: "39 6 * * *"
+    - cron: "39 6 * * 1"
   workflow_dispatch:
 
 permissions:
