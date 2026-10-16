@@ -8,6 +8,8 @@ a default changes in one, the note leads with it.
 
 ## [Unreleased]
 
+## [0.2.1] — 2026-10-16
+
 > **Behaviour change.** A page that serves fewer than twelve ads while the
 > response's own `total` says more remain now makes the run incomplete:
 > `stop_reason: short_page`, status `partial`, exit **6** (was status
