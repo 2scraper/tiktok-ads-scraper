@@ -8,6 +8,10 @@ a default changes in one, the note leads with it.
 
 ## [Unreleased]
 
+### Changed
+
+- CI only: the canary now runs weekly (Mondays 06:39 UTC) instead of daily, and on a manual dispatch.
+
 ## [0.2.1] — 2026-10-16
 
 > **Behaviour change.** A page that serves fewer than twelve ads while the
