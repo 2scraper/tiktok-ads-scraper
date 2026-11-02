@@ -1,4 +1,4 @@
-# tiktok-ads-scraper
+# TikTok Ad Library Scraper — Ads, Advertisers and Creatives in Python
 
 [![release](https://img.shields.io/github/v/release/2scraper/tiktok-ads-scraper?sort=semver)](https://github.com/2scraper/tiktok-ads-scraper/releases)
 [![tests](https://github.com/2scraper/tiktok-ads-scraper/actions/workflows/tests.yml/badge.svg)](https://github.com/2scraper/tiktok-ads-scraper/actions/workflows/tests.yml)
@@ -7,6 +7,8 @@
 [![licence](https://img.shields.io/badge/licence-MIT-green)](LICENSE)
 [![engines](https://img.shields.io/badge/engines-Playwright%20%7C%20Selenium%20%7C%20pyppeteer%20%7C%20CDP-informational)](#quick-start)
 [![runs without an account](https://img.shields.io/badge/runs%20without-an%20account-brightgreen)](#you-do-not-need-a-key-a-proxy-or-an-account)
+
+**TikTok Ad Library scraper** — an open-source (MIT) Python tool that reads TikTok's EU Ad Library at library.tiktok.com and writes each ad's advertiser, creatives and media URLs, first and last shown dates and TikTok's audience bucket, across 33 regions, to JSON or CSV. Measured 2026-09-22 from a bare datacentre address, the library's search was served with no key, proxy or account, but one header minted by the library's own JavaScript gates it, so a browser is a prerequisite. Use it to build a dataset of ads by region or advertiser, or compare two runs with `diff_runs.py`.
 
 Extract advertisements from **TikTok's EU Ad Library** — the advertiser,
 the creatives, the dates an ad ran, TikTok's own audience bucket, and the
@@ -258,6 +260,23 @@ bare GitHub runner with no secrets**, and is expected green — the README's
 central claim under test every week.
 
 ---
+
+## Guides
+
+- [How to run the 2scraper scrapers: setup, proxies, exit codes and access modes](https://2captcha.com/h/how-to-run-2scraper-open-source-scrapers) — installation, `.env`, `.meta.json` for the whole family.
+
+## Related scrapers
+
+Same CLI conventions, same output contract (one row per item, JSON or CSV, a `.meta.json` sidecar and shared exit codes):
+
+- [TikTok Profile scraper](https://github.com/2scraper/tiktok-profile-scraper) — Exact follower, like and video counts, bio, verification…
+- [TikTok Video scraper](https://github.com/2scraper/tiktok-video-scraper) — TikTok videos with exact engagement, sound, hashtags…
+- [Weibo scraper](https://github.com/2scraper/weibo-scraper) — Hot feed, account timelines and post comments…
+- [YouTube scraper](https://github.com/2scraper/youtube-scraper) — Comment threads, replies, video metadata and search
+- [Meta Ad Library scraper](https://github.com/2scraper/facebook-ads-scraper) — Every ad of a keyword or advertiser search in Meta's Ad…
+- [Facebook scraper](https://github.com/2scraper/facebook-pages-scraper) — Public Facebook Pages — contacts, followers, owner…
+
+All scrapers: [github.com/2scraper](https://github.com/2scraper) · Need another site? [Open a request](https://github.com/2scraper/.github/issues/new?title=%5BScraper%20request%5D%20)
 
 ## Contributing
 
