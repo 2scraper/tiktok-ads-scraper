@@ -11,6 +11,7 @@ a default changes in one, the note leads with it.
 ### Changed
 
 - CI only: the canary now runs weekly (Mondays 06:39 UTC) instead of daily, and on a manual dispatch.
+- Docs: `.env.example` no longer says the canary runs every morning (it runs on Mondays), and the 2026-10-09 to 2026-10-15 page-size measurement in the README now reads as taken while the canary still ran daily.
 
 ## [0.2.1] — 2026-10-16
 

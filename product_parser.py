@@ -352,8 +352,8 @@ def page_is_short(served_on_page: Optional[int], served_before: int,
     the response's own `total` says more remain.
 
     The endpoint serves twelve per page: 45 of the 47 cursor pages in the
-    daily canary's artifacts from 2026-10-09 to 2026-10-15 carried exactly
-    twelve. Both exceptions were in one run, on 2026-10-13: France's first
+    canary's artifacts from 2026-10-09 to 2026-10-15 (then run daily) carried
+    exactly twelve. Both exceptions were in one run, on 2026-10-13: France's first
     page carried TWO records, with `has_more: false` beside
     `total: 17,071,905`, and Germany's second page carried eleven the
     same way. The site documents no cap that would
