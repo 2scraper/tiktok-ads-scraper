@@ -130,8 +130,8 @@ stopped" is never just a number.
 
 **A short page under a large total is an incomplete run, not the end.**
 The library serves twelve ads per page: 45 of the 47 cursor pages in the
-daily canary's artifacts from 2026-10-09 to 2026-10-15 carried exactly
-twelve. Both exceptions came from one run on 2026-10-13. France's first page
+canary's artifacts from 2026-10-09 to 2026-10-15 (when it still ran daily)
+carried exactly twelve. Both exceptions came from one run on 2026-10-13. France's first page
 carried two ads, with `has_more: false` beside `total: 17,071,905`, and
 Germany's second page carried eleven. The library documents no cap that
 would explain that, so a page with fewer than twelve ads, while the
