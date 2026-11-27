@@ -10,6 +10,8 @@ a default changes in one, the note leads with it.
 
 ### Changed
 
+- CI only: the offline-checks job runs on `ubuntu-24.04` instead of `ubuntu-latest`, which moved to Ubuntu 26.04, where `actions/setup-python` has no Python 3.9 build. 3.9 stays the supported floor.
+- Docker: the image installs `libatomic1` before Playwright. Recent Playwright releases' Node driver needs it to run `playwright install` at all, and the slim base image does not ship it, so the image build failed.
 - CI only: the canary now runs weekly (Mondays 06:39 UTC) instead of daily, and on a manual dispatch.
 - Docs: `.env.example` no longer says the canary runs every morning (it runs on Mondays), and the 2026-10-09 to 2026-10-15 page-size measurement in the README now reads as taken while the canary still ran daily.
 
